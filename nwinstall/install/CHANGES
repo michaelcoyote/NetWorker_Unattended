@@ -1,0 +1,5 @@
+v 1.0 	initial drop
+v 1.1	changed name of jukebox config script to jukebox_config.exp
+	added verbosity to networker_install.pl
+	change cluster_config.exp and networker_install.pl to support 
+	conf file configuravle service name and shared directory
