@@ -26,7 +26,8 @@ use warnings;
 #
 use vars qw($NWPACKAGES $NSRSERVER @CLUSTERNODES $NWCLUSRG $HOSTIDFILE 
 	$DSHELLTIMEOUT $INSTALLP $DSHELL $CLMOVE $CLRGINFO $TMPCMDFILE 
-	$JBCONF $NWCLCONF $RCPPROG $CLUSTERSHAREDDIR); 
+	$JBCONF $NWCLCONF $RCPPROG $CLUSTERSHAREDDIR $CLADDSERV 
+	$CLSTARTSTOP $CLLSSERV ); 
 #
 ######
 
@@ -63,6 +64,15 @@ $RCPPROG="/usr/bin/rcp";
 # the name of the shared cluster mount point
 # for NetWorker
 $CLUSTERSHAREDDIR="/nsr_shared_mnt_pt";
+#
+# Cluster Start/Stop script
+$CLSTARTSTOP="/usr/bin/nw_hacmp.lc";
+#
+# the add server command
+$CLADDSERV="/usr/es/sbin/cluster/utilities/claddserv";
+#
+# the cllsserv command
+$CLLSSERV="/usr/es/sbin/cluster/utilities/cllsserv";
 #
 ## ## end config block ##
 # Don't touch these without good reason
@@ -195,7 +205,7 @@ sub move_clnode {
 sub get_clnode {
 	# loop through each Resource Group
 	#networker_install.pl
-	my $srg = "NetWorker_RG";
+	my $srg = "$_[0]";
 	open ( RGINFO, "$CLRGINFO $srg 2>&1|") || die "$CLRGINFO failed: $!\n";
 	#open ( RGINFO, "RGinfo_sdp2") || die "$CLRGINFO failed: $!\n";
 	my @rgstatus=<RGINFO>;
@@ -208,16 +218,14 @@ sub get_clnode {
 		print "l";
 		if ($statlin =~ m/^.*ONLINE.*/) {
 		my @rgloc_out=(split(/:/,$statlin));
-			while ($rgloc_out[2] eq $rgloc_out[8]) {
-				# only worried about if the actual
-				# RG exists on the system and 
-				# where it is
-				print "x";
-                                $nloc_out= $rgloc_out[8];
-				$nloc_out =~ s/^\s+//;
-				$nloc_out =~ s/\s+$//;
-				return ($nloc_out);
-				}
+			# only worried about if the actual
+			# RG exists on the system and 
+			# where it is
+			print "x";
+                        $nloc_out= $rgloc_out[2];
+			$nloc_out =~ s/^\s+//;
+			$nloc_out =~ s/\s+$//;
+			return ($nloc_out);
 		} else {
 			# don't care about offline nodes
 			print".";
@@ -225,7 +233,7 @@ sub get_clnode {
 		} 
 	} ## close "ONLINE" check
 	while (!$nloc_out) { 
-		die "\n no resource group $srg or clustering not started\n"; 
+		die "\nResource Group $srg not avalible or clustering not started\n"; 
 	} ## close status loop check
 } ## close rginfo_clnode subroutine
 #
@@ -387,6 +395,30 @@ print "\n\nThe following packages succeded:\n@inst_win\n";
 # end installer subsection
 ######
 
+######
+#
+# HACMP Cluster server configuration for NetWorker
+# Test to insure that the services is installed.  If it is, skip
+open ( CLSERT, "$CLLSSERV -n  $NSRSERVER 2>&1|")|| die "cannot open $CLLSSERV: $!";
+@cl_sert = <CLSERT>;
+
+foreach my $sertstln ( @cl_sert) {
+
+	if ($sertstln =~ m/^$NSRSERVER.*/) {
+	print "server exists skipping HACMP Cluster server configuration\n";
+	} else {
+	print "no HACMP server defined.  Defining server now\n";
+	open (CLSRVDEF, "$CLADDSERV -s $NSRSERVER -b \"$CLSTARTSTOP start\" -e \"$CLSTARTSTOP stop\" 2>&1|") || die "Cannot start $CLADDSERV: $!\n";
+	print "HACMP server defined\n";
+	@cl_servdef = <CLSRVDEF>;
+	print " @cl_servdef \n  ";
+	}
+}
+#
+#
+######
+
+
 
 ######
 # configure cluster
@@ -445,6 +477,7 @@ foreach my $clnode ( @CLUSTERNODES ) {
 	#
 	# does the cluster need moved?
 	if ( $clnode ne $curnode) {
+		print "\nthe current node of $NWCLUSRG is: $curnode\nMoving node to $clnode\n";
 		# yes? move_clnode
 		move_clnode($clnode,$NWCLUSRG);
 		#
