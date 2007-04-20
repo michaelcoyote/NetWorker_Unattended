@@ -1,0 +1,19 @@
+networker_install.pl
+	main file, no arguments or switches
+	calls cluster_config.exp and jukebox_config.exp
+	logs go to /usr/ngscore/logs/networker_install.pl.log ("scriptname".log)
+	Install packages on both nodes
+	configure cluster on both nodes via expect script
+	insert servers files
+	get/set HostIDs
+	configure jukeboxes via expect script
+
+cluster_config.exp
+	configures the networker cluster config
+	no swtiches
+	takes the networker cluster hostname and the shared directory as arguments
+
+jukebox_config.exp
+	configures the networker jukebox
+	no switches
+	takes the networker server name as the only argument
