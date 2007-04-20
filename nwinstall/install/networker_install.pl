@@ -68,12 +68,6 @@ $CLUSTERSHAREDDIR="/nsr_shared_mnt_pt";
 # Cluster Start/Stop script
 $CLSTARTSTOP="/usr/bin/nw_hacmp.lc";
 #
-# the add server command
-$CLADDSERV="/usr/es/sbin/cluster/utilities/claddserv";
-#
-# the cllsserv command
-$CLLSSERV="/usr/es/sbin/cluster/utilities/cllsserv";
-#
 ## ## end config block ##
 # Don't touch these without good reason
 # if necessary copy to config file and set there
@@ -107,7 +101,13 @@ $JBCONF="/usr/ngscore/install/jukebox_config.exp";
 # this script needs to be on both servers
 #
 $NWCLCONF="/usr/ngscore/install/cluster_config.exp";
-# 
+#
+# the add server command
+$CLADDSERV="/usr/es/sbin/cluster/utilities/claddserv";
+#
+# the cllsserv command
+$CLLSSERV="/usr/es/sbin/cluster/utilities/cllsserv";
+#
 ##### end variable defaults
 
 
@@ -452,6 +452,13 @@ foreach my $cn (@CLUSTERNODES) { # Nota: $cn = cluster node
 		die "\n\nNetWorker Cluster configuration script failed:\n @nwcconfig_out \n";
 	} else {next;}
 }
+
+# start networker
+# cheap and dirty, but should work
+# 
+my $curclnode = get_clnode($NWCLUSRG);
+system ("$DSHELL -n $curclnode $CLSTARTSTOP start") || die "command $DSHELL -n $curclnode $CLSTARTSTOP start failed: $!\n";
+
 #
 # end configure cluster subsection
 ######
