@@ -17,6 +17,14 @@ use warnings;
 #
 ######
 
+#####
+# open logfile
+open ( LOG, " >> /usr/ngscore/log/$0.log") || die "cannot open logfile: $!\n";
+#
+# redirect STDOUT and STDERR to LOG with weird typeglob magic
+*STDERR = *LOG;
+*STDOUT = *LOG;
+#####
 
 ######
 # Variable processing
@@ -56,7 +64,7 @@ $NWCLUSRG="NetWorker_RG";
 $HOSTIDFILE="/nsr/res/hostids";
 #
 # time out for dsh command  adjust as necessary
-$DSHELLTIMEOUT="60";
+$DSHELLTIMEOUT="180";
 #
 # rsh program..  could be ssh if so inclined
 $RCPPROG="/usr/bin/rcp";
@@ -69,8 +77,21 @@ $CLUSTERSHAREDDIR="/nsr_shared_mnt_pt";
 $CLSTARTSTOP="/usr/bin/nw_hacmp.lc";
 #
 ## ## end config block ##
+
+
+
+# read in config files
+if ( [-e "/usr/ngscore/config/$0.conf"] ) { 
+	no strict 'refs'; 
+	do "/usr/ngscore/config/$0.conf";
+	print "\n\nconfig file loaded\n";
+} else {print "\n\nConfig file not found, using defaults\n";}
+#####
+
+
+#######
 # Don't touch these without good reason
-# if necessary copy to config file and set there
+# 
 #
 # installp path
 $INSTALLP="/usr/sbin/installp";
@@ -111,21 +132,7 @@ $CLLSSERV="/usr/es/sbin/cluster/utilities/cllsserv";
 ##### end variable defaults
 
 
-#####
-# open logfile
-open ( LOG, " >> /usr/ngscore/log/$0.log") || die "cannot open logfile: $!\n";
-#
-# redirect STDOUT and STDERR to LOG with weird typeglob magic
-*STDERR = *LOG;
-*STDOUT = *LOG;
-#
-# read in config files
-if ( [-e "/usr/ngscore/config/$0.conf"] ) { 
-	no strict 'refs'; 
-	do "/usr/ngscore/config/$0.conf";
-	print "\n\nconfig file loaded\n";
-} else {print "\n\nConfig file not found, using defaults\n";}
-#####
+
 
 #####
 #
@@ -400,30 +407,6 @@ print "\n\nThe following packages succeded:\n@inst_win\n";
 #
 # end installer subsection
 ######
-
-######
-#
-# HACMP Cluster server configuration for NetWorker
-# Test to insure that the services is installed.  If it is, skip
-open ( CLSERT, "$CLLSSERV -n  $NSRSERVER 2>&1|")|| die "cannot open $CLLSSERV: $!";
-@cl_sert = <CLSERT>;
-
-foreach my $sertstln ( @cl_sert) {
-
-	if ($sertstln =~ m/^$NSRSERVER.*/) {
-	print "server exists skipping HACMP Cluster server configuration\n";
-	} else {
-	print "no HACMP server defined.  Defining server now\n";
-	open (CLSRVDEF, "$CLADDSERV -s $NSRSERVER -b \"$CLSTARTSTOP start\" -e \"$CLSTARTSTOP stop\" 2>&1|") || die "Cannot start $CLADDSERV: $!\n";
-	print "HACMP server defined\n";
-	@cl_servdef = <CLSRVDEF>;
-	print " @cl_servdef \n  ";
-	}
-}
-#
-#
-######
-
 
 
 ######
