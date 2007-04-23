@@ -289,12 +289,18 @@ sub get_hostid {
 	unlink ($TMPCMDFILE);
 	#
 	# clean up the hostid from nsradmin
+	my @hostid_out
+	foreach my $hid (@hostid_in) {
+		if ($hid =~ m/.*host.id.*/) {
+
+			@hostid_out = split(/:/, $hid]);
+			$hostid_out[1] =~ s/\;//;
+			$hostid_out[1] =~ s/\ //;
+			chomp($hostid_out[1]);
+		}
+	}
 	#
-	my @hostid_out = split(/:/, $hostid_in[0]);
-	$hostid_out[1] =~ s/\;//;
-	$hostid_out[1] =~ s/\ //;
-	chomp($hostid_out[1]);
-	#
+	if (!$hostid_out[1]) {die "no hostid found, stopped\n";}
 	# return the hostid
 	return "$hostid_out[1]";
 } ## close get_hostid subroutine
