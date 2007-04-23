@@ -17,14 +17,7 @@ use warnings;
 #
 ######
 
-#####
-# open logfile
-open ( LOG, " >> /usr/ngscore/log/$0.log") || die "cannot open logfile: $!\n";
-#
-# redirect STDOUT and STDERR to LOG with weird typeglob magic
-*STDERR = *LOG;
-*STDOUT = *LOG;
-#####
+
 
 ######
 # Variable processing
@@ -35,7 +28,7 @@ open ( LOG, " >> /usr/ngscore/log/$0.log") || die "cannot open logfile: $!\n";
 use vars qw($NWPACKAGES $NSRSERVER @CLUSTERNODES $NWCLUSRG $HOSTIDFILE 
 	$DSHELLTIMEOUT $INSTALLP $DSHELL $CLMOVE $CLRGINFO $TMPCMDFILE 
 	$JBCONF $NWCLCONF $RCPPROG $CLUSTERSHAREDDIR $CLADDSERV 
-	$CLSTARTSTOP $CLLSSERV ); 
+	$CLSTARTSTOP $CLLSSERV $OURLOC ); 
 #
 ######
 
@@ -47,8 +40,11 @@ use vars qw($NWPACKAGES $NSRSERVER @CLUSTERNODES $NWCLUSRG $HOSTIDFILE
 # 
 ## ## start config block ##
 #
+# our location
+$OURLOC="/usr/ngscore";	#
+#
 # NetWorker packages location
-$NWPACKAGES="/usr/ngscore/sw/networker";
+$NWPACKAGES="$OURLOC/sw/networker";
 # 
 # the Name of the clustered
 # NetWorker server
@@ -66,7 +62,7 @@ $HOSTIDFILE="/nsr/res/hostids";
 # time out for dsh command  adjust as necessary
 $DSHELLTIMEOUT="180";
 #
-# rsh program..  could be ssh if so inclined
+# rcp program..  could be scp if so inclined
 $RCPPROG="/usr/bin/rcp";
 #
 # the name of the shared cluster mount point
@@ -78,12 +74,19 @@ $CLSTARTSTOP="/usr/bin/nw_hacmp.lc";
 #
 ## ## end config block ##
 
+#####
+# open logfile
+open ( LOG, " >> $OURLOC/log/$0.log") || die "cannot open logfile: $!\n";
+#
+# redirect STDOUT and STDERR to LOG with weird typeglob magic
+*STDERR = *LOG;
+*STDOUT = *LOG;
+#####
 
-
-# read in config files
-if ( [-e "/usr/ngscore/config/$0.conf"] ) { 
+##### read in config files
+if ( [-e "$OURLOC/config/$0.conf"] ) { 
 	no strict 'refs'; 
-	do "/usr/ngscore/config/$0.conf";
+	do "$OURLOC/config/$0.conf";
 	print "\n\nconfig file loaded\n";
 } else {print "\n\nConfig file not found, using defaults\n";}
 #####
@@ -246,7 +249,6 @@ sub get_clnode {
 #
 #
 #######
-
 
 
 
@@ -474,9 +476,12 @@ foreach my $clnode ( @CLUSTERNODES ) {
 	# does the cluster need moved?
 	if ( $clnode ne $curnode) {
 		print "\nthe current node of $NWCLUSRG is: $curnode\nMoving node to $clnode\n";
-		# yes? move_clnode
+		# yes? then shut down NetWorker
+		system ("$DSHELL -n $curnode $CLSTARTSTOP stop") || die "command $DSHELL -n $curnode $CLSTARTSTOP stop failed: $!\n";
+		# move_clnode
 		move_clnode($clnode,$NWCLUSRG);
-		#
+		# 
+		system ("$DSHELL -n $clnode $CLSTARTSTOP start") || die "command $DSHELL -n $clnode $CLSTARTSTOP start failed: $!\n";
 		# give the app some time to come up
 		sleep (90);
 		# 
@@ -530,9 +535,12 @@ print "hostid file copied\n";
 print"Restarting NetWorker\n";
 #
 # this is lazy, but it will work
-move_clnode($CLUSTERNODES[0],$NWCLUSRG);
-sleep (90);
+my $curnode = get_clnode($NWCLUSRG);
+system ("$DSHELL -n $curnode $CLSTARTSTOP stop") || die "command $DSHELL -n $curnode $CLSTARTSTOP stop failed: $!\n";
+
+system ("$DSHELL -n $CLUSTERNODES[0]e $CLSTARTSTOP start") || die "command $DSHELL -n $clnode $CLSTARTSTOP start failed: $!\n";
 # get hostid and send somewhere
+#
 #
 my $clhostid_out = get_hostid($NSRSERVER);
 print ("NetWorker Cluster composite hostid: $clhostid_out\n");
