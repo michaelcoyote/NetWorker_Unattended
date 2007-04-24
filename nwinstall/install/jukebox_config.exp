@@ -12,21 +12,27 @@ set nsrserver [lindex $argv 0]
 spawn jbconfig -s $nsrserver
 match_max 1000000
 
-expect "Enter the hostname to use as a prefix?" {\
-send -- "$nsrserver\r"}
+expect "Enter the hostname to use as a prefix?"
+send -- "$nsrserver\r"
 
 
-expect "What kind of Jukebox are you configuring? \[1\]"
+expect "What kind of Jukebox are you configuring?"
 send -- "2\r"
 #
 # comment these lines out for a jukebox with only one controller path.
 expect "Which one do you want to install?"
 send -- "1\r"
 
+expect "What name do you want to assign to this jukebox device"
+send -- "$nsrserver\r"
 
-expect "Bypass auto-configure?"
+
+expect "Turn NetWorker auto-cleaning on"
 send -- "\r"
 
+
+expect "Bypass auto-configure"
+send -- "\r"
 
 expect "Would you like to configure another jukebox?"
 send -- "no\r"
