@@ -74,23 +74,31 @@ $CLSTARTSTOP="/usr/bin/nw_hacmp.lc";
 #
 ## ## end config block ##
 
+
+##### read in config files
+if ( -e "../config/networker_install.conf") { 
+	no strict 'refs';
+	open ( CONF, "../config/networker_install.conf") || die "cannot open config: $!\n";
+	my $conf = join "", <CONF>; 
+	close CONF;
+	eval $conf;
+	die "Couldn't eval config file: $@\n" if $@;
+
+	print "\n\nconfig file loaded\n";
+} else {print "\n\nConfig file not found, using defaults\n";}
+#####
+
+
+print "Installer root: $OURLOC\n";
+
 #####
 # open logfile
-open ( LOG, " >> $OURLOC/log/$0.log") || die "cannot open logfile: $!\n";
+open ( LOG, ">> $OURLOC/log/networker_install.log") || die "cannot open logfile $OURLOC/log/networker_install.log: $!\n";
 #
 # redirect STDOUT and STDERR to LOG with weird typeglob magic
 *STDERR = *LOG;
 *STDOUT = *LOG;
 #####
-
-##### read in config files
-if ( [-e "$OURLOC/config/$0.conf"] ) { 
-	no strict 'refs'; 
-	do "$OURLOC/config/$0.conf";
-	print "\n\nconfig file loaded\n";
-} else {print "\n\nConfig file not found, using defaults\n";}
-#####
-
 
 #######
 # Don't touch these without good reason
@@ -119,12 +127,12 @@ $CLRGINFO="/usr/es/sbin/cluster/utilities/clRGinfo -s";
 $TMPCMDFILE="/tmp/nsradm.tmp";
 #
 # jukebox expect script name
-$JBCONF="/usr/ngscore/install/jukebox_config.exp";
+$JBCONF="$OURLOC/install/jukebox_config.exp";
 # 
 # cluster expect script name
 # this script needs to be on both servers
 #
-$NWCLCONF="/usr/ngscore/install/cluster_config.exp";
+$NWCLCONF="$OURLOC/install/cluster_config.exp";
 #
 # the add server command
 $CLADDSERV="/usr/es/sbin/cluster/utilities/claddserv";
@@ -235,12 +243,13 @@ sub get_clnode {
                         $nloc_out= $rgloc_out[2];
 			$nloc_out =~ s/^\s+//;
 			$nloc_out =~ s/\s+$//;
-			return ($nloc_out);
 		} else {
 			# don't care about offline nodes
 			print".";
 			next;
 		} 
+	print "\ncurrent node is $nloc_out\n";
+	return($nloc_out);
 	} ## close "ONLINE" check
 	while (!$nloc_out) { 
 		die "\nResource Group $srg not avalible or clustering not started\n"; 
@@ -448,7 +457,9 @@ foreach my $cn (@CLUSTERNODES) { # Nota: $cn = cluster node
 # cheap and dirty, but should work
 # 
 my $curclnode = get_clnode($NWCLUSRG);
-system ("$DSHELL -n $curclnode $CLSTARTSTOP start") || die "command $DSHELL -n $curclnode $CLSTARTSTOP start failed: $!\n";
+system ("$DSHELL -n $curclnode $CLSTARTSTOP start") ;
+# nasty bug makes die() not work
+if ($?) {die "command $DSHELL -n $curclnode $CLSTARTSTOP start failed: $?\n";}
 
 #
 # end configure cluster subsection
@@ -477,13 +488,16 @@ foreach my $clnode ( @CLUSTERNODES ) {
 	if ( $clnode ne $curnode) {
 		print "\nthe current node of $NWCLUSRG is: $curnode\nMoving node to $clnode\n";
 		# yes? then shut down NetWorker
-		system ("$DSHELL -n $curnode $CLSTARTSTOP stop") || die "command $DSHELL -n $curnode $CLSTARTSTOP stop failed: $!\n";
+		system ("$DSHELL -n $curnode $CLSTARTSTOP stop");
+		# nasty bug makes die() not work
+		if ($?) {die "command $DSHELL -n $curclnode $CLSTARTSTOP stop failed: $?\n";}
+		sleep(20);
 		# move_clnode
 		move_clnode($clnode,$NWCLUSRG);
-
-		sleep (20);
 		# 
-		system ("$DSHELL -n $clnode $CLSTARTSTOP start") || die "command $DSHELL -n $clnode $CLSTARTSTOP start failed: $!\n";
+		system ("$DSHELL -n $clnode $CLSTARTSTOP start");
+		# nasty bug makes die() not work
+		if ($?) {die "command $DSHELL -n $curclnode $CLSTARTSTOP start failed: $?\n";}
 		# give the app some time to come up
 		sleep (90);
 		# 
@@ -538,9 +552,13 @@ print"Restarting NetWorker\n";
 #
 # this is lazy, but it will work
 my $curnode = get_clnode($NWCLUSRG);
-system ("$DSHELL -n $curnode $CLSTARTSTOP stop") || die "command $DSHELL -n $curnode $CLSTARTSTOP stop failed: $!\n";
+system ("$DSHELL -n $curnode $CLSTARTSTOP stop");
+# nasty bug makes die() not work
+if ($?) {die "command $DSHELL -n $curclnode $CLSTARTSTOP stop failed: $?\n";}
 
-system ("$DSHELL -n $CLUSTERNODES[0] $CLSTARTSTOP start") || die "command $DSHELL -n $CLUSTERNODES[0] $CLSTARTSTOP start failed: $!\n";
+system ("$DSHELL -n $curnode $CLSTARTSTOP start");
+# nasty bug makes die() not work
+if ($?) {die "command $DSHELL -n $curclnode $CLSTARTSTOP start failed: $?\n";}
 # get hostid and send somewhere
 #
 #
@@ -569,6 +587,9 @@ foreach my $jbline (@jbconfig_out) {
 		die "@jbconfig_out \n"
 	}
 	if ($jbline =~ m/^.*RPC.error.*/){
+		die "@jbconfig_out \n" 
+	}
+	if ($jbline =~ m/^.*RAP.error.*/){
 		die "@jbconfig_out \n" 
 	}else { next;}
 } ## end jbconfig log processing
