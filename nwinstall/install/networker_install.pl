@@ -298,11 +298,11 @@ sub get_hostid {
 	unlink ($TMPCMDFILE);
 	#
 	# clean up the hostid from nsradmin
-	my @hostid_out
+	my @hostid_out;
 	foreach my $hid (@hostid_in) {
 		if ($hid =~ m/.*host.id.*/) {
 
-			@hostid_out = split(/:/, $hid]);
+			@hostid_out = split(/:/, $hid);
 			$hostid_out[1] =~ s/\;//;
 			$hostid_out[1] =~ s/\ //;
 			chomp($hostid_out[1]);
@@ -480,6 +480,8 @@ foreach my $clnode ( @CLUSTERNODES ) {
 		system ("$DSHELL -n $curnode $CLSTARTSTOP stop") || die "command $DSHELL -n $curnode $CLSTARTSTOP stop failed: $!\n";
 		# move_clnode
 		move_clnode($clnode,$NWCLUSRG);
+
+		sleep (20);
 		# 
 		system ("$DSHELL -n $clnode $CLSTARTSTOP start") || die "command $DSHELL -n $clnode $CLSTARTSTOP start failed: $!\n";
 		# give the app some time to come up
@@ -538,7 +540,7 @@ print"Restarting NetWorker\n";
 my $curnode = get_clnode($NWCLUSRG);
 system ("$DSHELL -n $curnode $CLSTARTSTOP stop") || die "command $DSHELL -n $curnode $CLSTARTSTOP stop failed: $!\n";
 
-system ("$DSHELL -n $CLUSTERNODES[0]e $CLSTARTSTOP start") || die "command $DSHELL -n $clnode $CLSTARTSTOP start failed: $!\n";
+system ("$DSHELL -n $CLUSTERNODES[0] $CLSTARTSTOP start") || die "command $DSHELL -n $CLUSTERNODES[0] $CLSTARTSTOP start failed: $!\n";
 # get hostid and send somewhere
 #
 #
