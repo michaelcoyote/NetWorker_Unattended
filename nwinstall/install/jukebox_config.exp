@@ -17,7 +17,7 @@ send -- "$nsrserver\r"}
 
 
 expect "What kind of Jukebox are you configuring? \[1\]"
-send -- "1\r"
+send -- "2\r"
 #
 # comment these lines out for a jukebox with only one controller path.
 expect "Which one do you want to install?"

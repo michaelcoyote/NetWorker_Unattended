@@ -488,15 +488,14 @@ nw_start ($curclnode) ;
 ######
 # get/set HostIDs
 #
-#
+
+
+print"determining cluster hostid:\n";
+# if the hostids file exists, we can skip this part
 if ( !-e $HOSTIDFILE) {
 
 	my %hostids;
 	my @hostids;
-
-
-	print"Determining cluster hostid:\n";
-
 	# Now loop through the list of clusternodes
 	# we don't need to do this with arrays of arrays, but 
 	# it allows us to print up a nice report when we're done.
@@ -547,9 +546,11 @@ if ( !-e $HOSTIDFILE) {
 	close (HOSTID);
 	print "$HOSTIDFILE written\n ";
 	
-	# Move hostid file to both nodes
+	# Move hostid file to both nodes this is a bit of a 
+	# blunt solution if we were being more crafty we'd
+	# just create it in a temdir and move it to the 
+	# correct node, but this will work just fine
 	#
-
 	print "copying hostid file to $CLUSTERNODES[1]:$HOSTIDFILE\n ";
 	open (RSHOUT, "$RCPPROG $HOSTIDFILE $CLUSTERNODES[1]:$HOSTIDFILE 2>&1|") || die "$RCPPROG failed: $!\n"; 
 
@@ -574,17 +575,15 @@ if ( !-e $HOSTIDFILE) {
 
 	sleep(20);
 	nw_start($curnode);
-	# nasty bug makes die() not work
-	if ($?) {die "command $DSHELL -n $curclnode $CLSTARTSTOP start failed: $?\n";}
 	# get hostid and send somewhere
 	#
 	#
 	my $clhostid_out = get_hostid($NSRSERVER);
-	print ("NetWorker Cluster composite hostid: $clhostid_out\n");
+	print ("NetWorker Cluster composite hostid: $clhostid_out\n\n");
 
 } ## end if 
 else {
-	print "$HOSTIDFILE found skipping....\n";
+	print "$HOSTIDFILE found, skipping composite HostID generation\n\n";
 }
 
 # end get/set HostIDs subsection
