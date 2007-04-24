@@ -100,6 +100,9 @@ open ( LOG, ">> $OURLOC/log/networker_install.log") || die "cannot open logfile 
 *STDOUT = *LOG;
 #####
 
+print "Installer root: $OURLOC\n";
+
+
 #######
 # Don't touch these without good reason
 # 
@@ -259,8 +262,28 @@ sub get_clnode {
 #
 #######
 
+#######
+# networker start and stop uglyness
+#
+#
+sub nw_start {
+	# this is lazy, but it will work
+	print "starting Networker on $_[0]\n";
+	system ("$DSHELL -n $_[0] $CLSTARTSTOP start");
+	# nasty bug makes die() not work
+	if ($?) {die "command $DSHELL -n $_[0] $CLSTARTSTOP start failed: $?\n";}
+print "Networker started on $_[0]\n";
+}
 
-
+sub nw_stop {
+	print "stopping Networker on $_[0]\n";
+	system ("$DSHELL -n $_[0] $CLSTARTSTOP stop");
+	# nasty bug makes die() not work
+	if ($?) {die "command $DSHELL -n $_[0] $CLSTARTSTOP stop failed: $?\n";} 
+print "Networker stopped on $_[0]\n";
+} 
+#
+#
 ###### 
 # get_hostid()
 #
@@ -454,13 +477,9 @@ foreach my $cn (@CLUSTERNODES) { # Nota: $cn = cluster node
 }
 
 # start networker
-# cheap and dirty, but should work
 # 
 my $curclnode = get_clnode($NWCLUSRG);
-system ("$DSHELL -n $curclnode $CLSTARTSTOP start") ;
-# nasty bug makes die() not work
-if ($?) {die "command $DSHELL -n $curclnode $CLSTARTSTOP start failed: $?\n";}
-
+nw_start ($curclnode) ;
 #
 # end configure cluster subsection
 ######
@@ -469,101 +488,105 @@ if ($?) {die "command $DSHELL -n $curclnode $CLSTARTSTOP start failed: $?\n";}
 ######
 # get/set HostIDs
 #
-my %hostids;
-my @hostids;
-
-
-print"Determining cluster hostid:\n";
-
-# Now loop through the list of clusternodes
-# we don't need to do this with arrays of arrays, but 
-# it allows us to print up a nice report when we're done.
 #
-foreach my $clnode ( @CLUSTERNODES ) {
+if ( !-e $HOSTIDFILE) {
+
+	my %hostids;
+	my @hostids;
+
+
+	print"Determining cluster hostid:\n";
+
+	# Now loop through the list of clusternodes
+	# we don't need to do this with arrays of arrays, but 
+	# it allows us to print up a nice report when we're done.
+	#
+	foreach my $clnode ( @CLUSTERNODES ) {
+		# 
+		# set initial curnode
+		my $curnode = get_clnode($NWCLUSRG);
+		#
+		# does the cluster need moved?
+		if ( $clnode ne $curnode) {
+			print "\nthe current node of $NWCLUSRG is: $curnode\nMoving node to $clnode\n";
+			# yes? then shut down NetWorker
+			nw_stop( $curnode);
+			# give nw a rest befor the move
+			sleep(20);
+			# move_clnode
+			move_clnode($clnode,$NWCLUSRG);
+			# 
+			nw_start($clnode);
+			# give the app some time to come up
+			sleep (98);
+			# 
+			# update the current node
+			$curnode = get_clnode($NWCLUSRG);
+		} 
+		# call for each cluster node
+		my $hostid = get_hostid($NSRSERVER);
+		#print $hostid;
+		#
+		push(@{$hostids{$clnode}},$hostid);
+	} ## close foreach()
+	#
+	# create a plain array..  there is probably a cheaper way
+	foreach my $clnode ( @CLUSTERNODES ) {
+		print "$clnode hostid: @{$hostids{$clnode}}\n" ;
+		push (@hostids, @{$hostids{$clnode}});	
+
+	} ## close foreach()#
+
+	# turn into our hostids file format
+	my $hostid_out = join (":",@hostids); 
+
+	print "writing hostid file to $HOSTIDFILE\n ";
+	#create hostid file
+	open (HOSTID,">$HOSTIDFILE") || die "$!\n";
+	print HOSTID "$hostid_out";
+	close (HOSTID);
+	print "$HOSTIDFILE written\n ";
+	
+	# Move hostid file to both nodes
+	#
+
+	print "copying hostid file to $CLUSTERNODES[1]:$HOSTIDFILE\n ";
+	open (RSHOUT, "$RCPPROG $HOSTIDFILE $CLUSTERNODES[1]:$HOSTIDFILE 2>&1|") || die "$RCPPROG failed: $!\n"; 
+
+	my @rsh_out = <RSHOUT>;
+
+	foreach my $rshline (@rsh_out) {
+		if ($rshline =~ m/^.*NOT.FOUND.*/) {
+			die "ERROR: $rshline\n";
+		}else {return(0);}
+	} ## end rsh log processing
+
+	print "hostid file copied\n";
+
+	# restart networker
+
+	print"Restarting NetWorker\n";
+	#
 	# 
-	# set initial curnode
 	my $curnode = get_clnode($NWCLUSRG);
+
+	nw_stop($curnode);
+
+	sleep(20);
+	nw_start($curnode);
+	# nasty bug makes die() not work
+	if ($?) {die "command $DSHELL -n $curclnode $CLSTARTSTOP start failed: $?\n";}
+	# get hostid and send somewhere
 	#
-	# does the cluster need moved?
-	if ( $clnode ne $curnode) {
-		print "\nthe current node of $NWCLUSRG is: $curnode\nMoving node to $clnode\n";
-		# yes? then shut down NetWorker
-		system ("$DSHELL -n $curnode $CLSTARTSTOP stop");
-		# nasty bug makes die() not work
-		if ($?) {die "command $DSHELL -n $curclnode $CLSTARTSTOP stop failed: $?\n";}
-		sleep(20);
-		# move_clnode
-		move_clnode($clnode,$NWCLUSRG);
-		# 
-		system ("$DSHELL -n $clnode $CLSTARTSTOP start");
-		# nasty bug makes die() not work
-		if ($?) {die "command $DSHELL -n $curclnode $CLSTARTSTOP start failed: $?\n";}
-		# give the app some time to come up
-		sleep (90);
-		# 
-		# update the current node
-		$curnode = get_clnode($NWCLUSRG);
-	} 
-	# call for each cluster node
-	my $hostid = get_hostid($NSRSERVER);
-	#print $hostid;
 	#
-	push(@{$hostids{$clnode}},$hostid);
-} ## close foreach()
-#
-# create a plain array..  there is probably a cheaper way
-foreach my $clnode ( @CLUSTERNODES ) {
-	print "$clnode hostid: @{$hostids{$clnode}}\n" ;
-	push (@hostids, @{$hostids{$clnode}});	
+	my $clhostid_out = get_hostid($NSRSERVER);
+	print ("NetWorker Cluster composite hostid: $clhostid_out\n");
 
-} ## close foreach()#
+} ## end if 
+else {
+	print "$HOSTIDFILE found skipping....\n";
+}
 
-# turn into our hostids file format
-my $hostid_out = join (":",@hostids); 
-
-
-print "writing hostid file to $HOSTIDFILE\n ";
-#create hostid file
-open (HOSTID,">$HOSTIDFILE") || die "$!\n";
-print HOSTID "$hostid_out";
-close (HOSTID);
-print "$HOSTIDFILE written\n ";
-
-# Move hostid file to both nodes
-#
-
-print "copying hostid file to $CLUSTERNODES[1]:$HOSTIDFILE\n ";
-open (RSHOUT, "$RCPPROG $HOSTIDFILE $CLUSTERNODES[1]:$HOSTIDFILE 2>&1|") || die "$RCPPROG failed: $!\n"; 
-
-my @rsh_out = <RSHOUT>;
-
-foreach my $rshline (@rsh_out) {
-	if ($rshline =~ m/^.*NOT.FOUND.*/) {
-		die "ERROR: $rshline\n";
-	}else {return(0);}
-} ## end rsh log processing
-
-print "hostid file copied\n";
-
-
-# restart networker
-
-print"Restarting NetWorker\n";
-#
-# this is lazy, but it will work
-my $curnode = get_clnode($NWCLUSRG);
-system ("$DSHELL -n $curnode $CLSTARTSTOP stop");
-# nasty bug makes die() not work
-if ($?) {die "command $DSHELL -n $curclnode $CLSTARTSTOP stop failed: $?\n";}
-
-system ("$DSHELL -n $curnode $CLSTARTSTOP start");
-# nasty bug makes die() not work
-if ($?) {die "command $DSHELL -n $curclnode $CLSTARTSTOP start failed: $?\n";}
-# get hostid and send somewhere
-#
-#
-my $clhostid_out = get_hostid($NSRSERVER);
-print ("NetWorker Cluster composite hostid: $clhostid_out\n");
 # end get/set HostIDs subsection
 ######
 
@@ -575,7 +598,10 @@ print ("NetWorker Cluster composite hostid: $clhostid_out\n");
 
 print "Configuring Jukebox\n";
 
-open ( JBCONFIG,"$JBCONF $NSRSERVER 2>&1|") || die "$!\n";
+my $jbnode = get_clnode($NWCLUSRG);
+
+
+open ( JBCONFIG,"$DSHELL -n $jbnode $JBCONF $NSRSERVER 2>&1|") || die "$!\n";
 
 my @jbconfig_out = <JBCONFIG>;
 
