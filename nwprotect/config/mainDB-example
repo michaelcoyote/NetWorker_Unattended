@@ -4,7 +4,7 @@
 #
 # the Name of the clustered
 # NetWorker server
-$NSRSERVER="stinkpad-ii";
+$NSRSERVER="sdp_nsr";
 #
 # savegroup for backups
 $SVGRP="main_db-test1";

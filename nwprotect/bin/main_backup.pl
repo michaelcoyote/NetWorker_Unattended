@@ -175,10 +175,13 @@ sub recycler {
 
 sub checksum {
 	#create a SysV style checksum
+	my $sum=0;
 	open (CKFILE, "$_[0]") || die "cant open $_[0]\n";
 	local $/;  # slurp!
-	unpack("%32C*",<CKFILE>) % 65535;
+	$sum += unpack("%16C*",<CKFILE>);
+	$sum %= (2 ** 16) - 1;
 	close (CKFILE);
+	return ($sum);
 }
 	
 
@@ -194,7 +197,7 @@ sub media_ck {
 	print "performing saveset and media check\n";
 	#my $query="-q \"!incomplete\"";
 	my $query="-q name=\"$FSSSN\" -q \"!incomplete\"";
-	my $report="-r ssid,cloneid,name,nsavetime,savetime,volume,sumsize";
+	my $report="-r ssid,cloneid,name,nsavetime,savetime,volume,sumsize,client";
 	open (SSIN, "$MMINFO -xc, $query $report 2>&1|") || die "$MMINFO failed: $!"; 
 	my @ss_in = <SSIN>;
 	my @ss_mid;
@@ -208,7 +211,7 @@ sub media_ck {
 		if ($ss_ln =~ m/.*$SSFN.*/) { #temp sorting of mminfo
 			print "$ss_ln\n" if $DEBUG;
 			my ($ssid, $clnid, $name, $nsavetime, 
-				$savetime, $volume, $sumsize
+				$savetime, $volume, $sumsize,$client
 			) =  split(',', $ss_ln);
 			$sumsize =~ s/\ KB/000/;
 			$sumsize =~ s/\ MB/000000/;
@@ -225,7 +228,8 @@ sub media_ck {
 				$name,
 				$savetime,
 				$volume,
-				$sumsize
+				$sumsize,
+				$client
 			);
 
 		} #temp sorting of mminfo
@@ -237,8 +241,8 @@ sub media_ck {
 		++ $bu_count;
 		my @ss_ref = @{$ss_out{$k}};
 		#print "\n\nStuff: @{$ss_out{$k}}\n\n";
-		my ($ssid, $name, $nsavetime, 
-			$savetime, $volume, $sumsize
+		my ($ssid, $name, $nsavetime, $savetime, 
+			$volume, $sumsize, $client
 		) =  @{$ss_out{$k}};
 		print "- backup $name from $k being processed \n" if $DEBUG;
 		if ($MAXBACKUPS <= $bu_count) {
@@ -293,8 +297,16 @@ sub backup_list {
 			push (@fnf, $bkupfile);
 		} ## close file test loop
 	} ## end sort loop
+	#
+	# no point in backing up an empty file.
+	# error out and let people know
+	if (!@backupset_out) {
+		die "backup set empty";
+	}
 	# create test file w/ timestamp & filelist
 	# for now add the backup file to the list
+	push (@backupset_out,$BUINLST);
+	push (@backupset_out,$bkupfileout);
 	#
 	# write the actual backup list
 	open (BU_OUTFILE, "> $FSSSN") || die "Error writing $FSSSN, stopped: $!\n";
@@ -310,7 +322,7 @@ sub backup_list {
 		print "$f\n"}
 	}
 	print "file: $FSSSN created\n";
-} # end backup sub
+} # end listmaking  sub
 #
 # Start the group and dump to a filehandle
 sub savegrp {
@@ -369,7 +381,7 @@ sub recover {
 }
 
 sub filetest {
-	recover($BUCKSUM);
+	my $testfile recover($BUCKSUM);
 
 }
 
@@ -381,7 +393,7 @@ sub filetest {
 media_ck() if (!$NOCHECK);
 backup_list() if (!$NOLIST);
 savegrp() if (!$NOBKUP);
-#recover($BUCKSUM)
+#filetest($BUCKSUM)
 
 # 
 #
