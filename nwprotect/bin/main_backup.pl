@@ -176,11 +176,10 @@ sub recycler {
 sub checksum {
 	#create a SysV style checksum
 	open (CKFILE, "$_[0]") || die "cant open $_[0]\n";
-
 	local $/;  # slurp!
 	unpack("%32C*",<CKFILE>) % 65535;
 	close (CKFILE);
-};
+}
 	
 
 #####
@@ -193,8 +192,8 @@ sub media_ck {
 	#
 	#
 	print "performing saveset and media check\n";
-	my $query="-q \"!incomplete\"";
-	#my $query="-q name=\"$FSSSN\"";
+	#my $query="-q \"!incomplete\"";
+	my $query="-q name=\"$FSSSN\" -q \"!incomplete\"";
 	my $report="-r ssid,cloneid,name,nsavetime,savetime,volume,sumsize";
 	open (SSIN, "$MMINFO -xc, $query $report 2>&1|") || die "$MMINFO failed: $!"; 
 	my @ss_in = <SSIN>;
@@ -283,17 +282,12 @@ sub backup_list {
 	my @backupck_out; # put the files here
 	my @fnf; # missing files for backup report
 	foreach my $bkupfile (@backupset_in) { 
+		chomp($bkupfile);
 		# test existance
-		#if ( -e chomp($bkupfile) ) {
-		if ( chomp($bkupfile) ) {
-			#
-			# get a checksum
-			if ($CHECKSUM){my $ck = checksum($bkupfile);}
+		if ( -e $bkupfile) {
 			#
 			# save the existing files to an array
 			push (@backupset_out, $bkupfile);
-			# and to another array with the checksum
-			if ($CHECKSUM){push (@backupck_out, $bkupfile.",".$ck);}
 		} else {
 			# save off missing files to array for later reporting
 			push (@fnf, $bkupfile);
@@ -301,25 +295,20 @@ sub backup_list {
 	} ## end sort loop
 	# create test file w/ timestamp & filelist
 	# for now add the backup file to the list
-	if ($CHECKSUM) {push (@backupset_out, $FSSSN-check);}
 	#
 	# write the actual backup list
 	open (BU_OUTFILE, "> $FSSSN") || die "Error writing $FSSSN, stopped: $!\n";
-	# now write the checkfile
-	if ($CHECKSUM) {open (BU_CKFILE, "> $FSSSN-check") || die "Error writing $FSSSN-check, stopped: $!\n";}
 	
 	foreach my $bkupfileout (@backupset_out){
 		print BU_OUTFILE "$bkupfileout\n";
 	}
-	if ($CHECKSUM) {
-		foreach my $checksum (@backupck_out){
-		print BU_CKFILE "$checksum\n";
-		}
-	}
 	# 
 	# TODO
 	# this array could go somewhere either log or email or both
-	if (@fnf) { print "these files not found:\n @fnf\n";}
+	if (@fnf) { print "these files not found:\n ";
+		foreach my $f (@fnf){
+		print "$f\n"}
+	}
 	print "file: $FSSSN created\n";
 } # end backup sub
 #
@@ -338,7 +327,7 @@ sub savegrp {
 
 	foreach my $svg_ln (@svgrp_in) {
 		#
-		chomp ($svg_ln);
+		#chomp ($svg_ln);
 		# find the lines that show success
 		if ( $svg_ln =~ m/.*succeed.*/) {
 			print "s";
@@ -346,6 +335,8 @@ sub savegrp {
 		} if ($svg_ln =~ m/.*level.*files/) {
 			print"$svg_ln\n";
 		} if ($svg_ln =~ m/.*fail.*/) {
+			push (@svgrp_fail, $svg_ln)
+		} if ($svg_ln =~ m/.*no.group.named.*/) {
 			push (@svgrp_fail, $svg_ln)
 		} if ($svg_ln =~ m/.*$SSFN.*/) {
 			$svg_ln =~ s/.*\://;
@@ -390,7 +381,7 @@ sub filetest {
 media_ck() if (!$NOCHECK);
 backup_list() if (!$NOLIST);
 savegrp() if (!$NOBKUP);
-recover($BUCKSUM)
+#recover($BUCKSUM)
 
 # 
 #
