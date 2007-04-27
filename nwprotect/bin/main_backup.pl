@@ -53,12 +53,12 @@ $NSRSERVER="stinkpad-ii";
 $SVGRP_ROOT="main_db";
 # 
 # Saveset file name
-$SSFN="bu_list.txt";
+$SSFN="bu_list";
 # fileset location/saveset name
-$FSSSN="c:\\$SSFN";
+$FSSSN="/nsr/savelists/$SSFN";
 #
 # backup in list
-$BUINLST="c:\\bu_list-in.txt";
+$BUINLST="/nsr/savelists/$SSFN-backup";
 #
 # NW Backup Schedule
 $NWSCH="FullAlways";
@@ -312,8 +312,8 @@ sub savegrp {
 
 
 media_ck();
-#backup_list();
-savegrp();
+backup_list();
+#savegrp();
 
 # 
 #
