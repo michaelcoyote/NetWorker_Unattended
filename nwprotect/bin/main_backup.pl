@@ -174,14 +174,15 @@ sub recycler {
 
 
 sub checksum {
-	#create a SysV style checksum
-	my $sum=0;
-	open (CKFILE, "$_[0]") || die "cant open $_[0]\n";
-	local $/;  # slurp!
-	$sum += unpack("%16C*",<CKFILE>);
-	$sum %= (2 ** 16) - 1;
-	close (CKFILE);
-	return ($sum);
+        #create a SysV style checksum
+	# same as "sum -o file" on AIX
+        my $sum=0;
+        open (CKFILE, "$_[0]") || die "cant open $_[0]\n";
+        while (<CKFILE>){
+                $sum += unpack("%16C*",$_);}
+        $sum %= (2 ** 16) - 1;
+        close (CKFILE);
+        return ($sum);
 }
 	
 
