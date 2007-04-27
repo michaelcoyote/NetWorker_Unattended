@@ -58,7 +58,7 @@ $SSFN="bu_list";
 $FSSSN="/nsr/savelists/$SSFN";
 #
 # backup in list
-$BUINLST="/nsr/savelists/$SSFN-backup";
+$BUINLST="/nsr/savelists/$SSFN-in";
 #
 # NW Backup Schedule
 $NWSCH="FullAlways";
@@ -77,7 +77,7 @@ $NSRJB="nsrjb";
 $NSRMM="nsrmm";
 # 
 # mminfo location
-$MMINFO="mminfo -s $NSRSERVER -v -q volume=mainDB.001";
+$MMINFO="mminfo -s $NSRSERVER -v";
 # 
 # savegrp (save group) command
 $SAVEGRPCMD="savegrp";
