@@ -31,9 +31,10 @@ use Getopt::Std;
 # Make our variables global
 # any new config variable belongs here
 #
-use vars qw($NSRSERVER $NSRJB $MMINFO $SAVEGRPCMD $SVGRP_ROOT $SVGRP $NWSCH
-	$FSSSN $BUINLST $MAXBACKUPS $BKUPFRQ $SSFN $backupset $DEBUG
-	$NSRMM $opt_D %options $SYSTIME); 
+use vars qw($NSRSERVER $NSRJB $MMINFO $SAVEGRPCMD $SVGRP_ROOT $SVGRP 
+	$NWSCH $FSSSN $BUINLST $MAXBACKUPS $BKUPFRQ $SSFN $DEBUG
+	$NSRMM $opt_D %options $SYSTIME $NOCHECK $NOLIST $NOBKUP 
+	$RECOVER $RTMP $BUCKSUM $CHECKSUM); 
 #
 ######
 
@@ -49,16 +50,17 @@ use vars qw($NSRSERVER $NSRJB $MMINFO $SAVEGRPCMD $SVGRP_ROOT $SVGRP $NWSCH
 # NetWorker server
 $NSRSERVER="stinkpad-ii";
 #
-# root of savegroup for main db backups
-$SVGRP_ROOT="main_db";
-# 
 # Saveset file name
 $SSFN="bu_list";
 # fileset location/saveset name
 $FSSSN="/nsr/savelists/$SSFN";
 #
+$SVGRP="main_db-test1";
 # backup in list
 $BUINLST="/nsr/savelists/$SSFN-in";
+#
+# Backup checksum file
+$BUCKSUM="/nsr/savelists/$SSFN-checksum";
 #
 # NW Backup Schedule
 $NWSCH="FullAlways";
@@ -70,6 +72,51 @@ $MAXBACKUPS=3;
 # in seconds (e.g. 3660 = 1hr, 43920 = 12 hr, 87840 = 1 day)
 $BKUPFRQ=3660;
 #
+#
+$RTMP="/nsr/tmp/";
+#
+# for skipping parts of the backup script.. for testing use only
+$NOCHECK=0;
+$NOLIST=0;
+$NOBKUP=0;
+#
+##### end variable default
+#
+# set up some variables
+$DEBUG=0;
+
+$CHECKSUM=0;
+#
+# set it up once and operate on it 
+# to avoid race condtions mostly
+$SYSTIME=time();
+
+#####
+# set up our vars
+#
+# -f: force a backup
+# -D: debug
+# -c: config file
+#
+#
+getopts('fDc:',\%options);
+#
+#
+
+##### read in config files
+if ($options{c}) {
+	if ( -e "$options{c}") { 
+		print "reading $options{c}\n";
+		no strict 'refs';
+		open ( CONF, "$options{c}") || die "cannot open config: $!\n";
+		my $conf = join "", <CONF>; 
+		close CONF;
+		eval $conf;
+		die "Couldn't eval config file: $@\n" if $@;
+		print "config file loaded\n";
+	} else {print "Config file not found, using defaults\n";}
+}
+#####
 # nsrjb location
 $NSRJB="nsrjb";
 #
@@ -81,33 +128,24 @@ $MMINFO="mminfo -s $NSRSERVER -v";
 # 
 # savegrp (save group) command
 $SAVEGRPCMD="savegrp";
-##### end variable default
-
-#$backupset="test1";
-
-
-
-#$SVGRP="$SVGRP_ROOT-$backupset";
-$SVGRP="$SVGRP_ROOT-test1";
-
-$DEBUG=0;
-
-$SYSTIME=time();
-
-#####
-# set up our vars
 #
-getopts('fD',\%options);
-#
+# networker recover
+$RECOVER="recover";
+####
+
+
+####
+# set up command line switches
 #
 # just makes code easier to read
 $DEBUG=1 if $options{'D'};
-
+#
 # force backup by setting backup limit to 0
 if ($options{'f'}) {
 	print "forcing backup with -f flag\n";
 	$BKUPFRQ=0;
 }
+#####
 
 print "Debug set\n" if $DEBUG;
 
@@ -133,6 +171,16 @@ sub recycler {
 
 	}
 }
+
+
+sub checksum {
+	#create a SysV style checksum
+	open (CKFILE, "$_[0]") || die "cant open $_[0]\n";
+
+	local $/;  # slurp!
+	unpack("%32C*",<CKFILE>) % 65535;
+	close (CKFILE);
+};
 	
 
 #####
@@ -183,7 +231,7 @@ sub media_ck {
 
 		} #temp sorting of mminfo
 	}
-	#print Dumper (%ss_out) if $DEBUG;
+	print Dumper (%ss_out) if $DEBUG;
 	my $bu_count=0;
 	foreach my $k (reverse sort keys %ss_out) {
 		print "r";
@@ -199,9 +247,6 @@ sub media_ck {
 			print "- SSID $ssid queued for removal\n" if $DEBUG;
 			push (@bu_mfd, $ssid);
 		}
-		#print Dumper ($ss_out{$k}) if $DEBUG;
-		#print Dumper (@ss_ref) if $DEBUG;
-		#print "savetime: $k\n stuff:@ss_ref\n";
 		print "$bu_count";
 	}
 	print "\n\n";	
@@ -235,29 +280,41 @@ sub backup_list {
 	my @backupset_in = <BU_INFILE>;
 	
 	my @backupset_out; # put the files here
+	my @backupck_out; # put the files here
 	my @fnf; # missing files for backup report
 	foreach my $bkupfile (@backupset_in) { 
 		# test existance
 		#if ( -e chomp($bkupfile) ) {
 		if ( chomp($bkupfile) ) {
-
+			#
+			# get a checksum
+			if ($CHECKSUM){my $ck = checksum($bkupfile);}
+			#
 			# save the existing files to an array
 			push (@backupset_out, $bkupfile);
+			# and to another array with the checksum
+			if ($CHECKSUM){push (@backupck_out, $bkupfile.",".$ck);}
 		} else {
 			# save off missing files to array for later reporting
 			push (@fnf, $bkupfile);
 		} ## close file test loop
 	} ## end sort loop
-	# TODO
 	# create test file w/ timestamp & filelist
 	# for now add the backup file to the list
-	push (@backupset_out, $BUINLST);
+	if ($CHECKSUM) {push (@backupset_out, $FSSSN-check);}
 	#
 	# write the actual backup list
 	open (BU_OUTFILE, "> $FSSSN") || die "Error writing $FSSSN, stopped: $!\n";
+	# now write the checkfile
+	if ($CHECKSUM) {open (BU_CKFILE, "> $FSSSN-check") || die "Error writing $FSSSN-check, stopped: $!\n";}
 	
 	foreach my $bkupfileout (@backupset_out){
 		print BU_OUTFILE "$bkupfileout\n";
+	}
+	if ($CHECKSUM) {
+		foreach my $checksum (@backupck_out){
+		print BU_CKFILE "$checksum\n";
+		}
 	}
 	# 
 	# TODO
@@ -304,16 +361,36 @@ sub savegrp {
 	print "NetWorker Backup File List:\n\n @svgrp_slist\n" if @svgrp_slist ;
 }
 
+sub recover {
+	open (RTEST, "$RECOVER -s $NSRSERVER -d $RTMP -a $_[0]  2>&1|") || die "Recovery failed: $!\n";
+	my @recovtest = <RTEST>;
+	my $r_file;
+	foreach my $r_ln (@recovtest) {
+		if ($r_ln =~ m/.*$SSFN$/) {
+			chomp($r_ln);
+			$r_ln = $r_file;
+		} if ($r_ln =~ m/^Received.1.file.*/) {
+			print "recovery suscessful\n";
+			return($r_file);
+		} else {next;}
+		print "problem with recovery\n";
+	}
+}
 
+sub filetest {
+	recover($BUCKSUM);
+
+}
 
 #######
 # main section of program
 #
 
 
-media_ck();
-backup_list();
-#savegrp();
+media_ck() if (!$NOCHECK);
+backup_list() if (!$NOLIST);
+savegrp() if (!$NOBKUP);
+recover($BUCKSUM)
 
 # 
 #
