@@ -1,11 +1,11 @@
 #!/usr/bin/perl
 ###########
+# base_nwconf.pl
+#
+# add the base config to networker
 #
 #
 #
-#
-#
-
 #####
 
 ###### 
@@ -81,15 +81,19 @@ $TRUN=0;
 # -t: test only, works very nice with -D
 #
 #
-getopts('Dnsuc:',\%options);
-#
-#
+getopts('Dtnsuc:',\%options);
 
+####
+# make command line switches do something
+#
+# just makes code easier to read, really.
+if ($options{D}) { $DEBUG=1;}
 if ($options{s}) { $SCHEDULES=1;}
 if ($options{u}) { $USERGROUP=1;}
-if ($options{n}) { $NOTIFICATION=1;}@hostid_in
+if ($options{n}) { $NOTIFICATION=1;}
 if ($options{t}) { $TRUN=1;}
-
+#
+# if nothing gets selected, select all types
 if ((!$SCHEDULES) && (!$USERGROUP) && (!$NOTIFICATION)) {
 	$NOTIFICATION=1;
 	$USERGROUP=1;
@@ -126,16 +130,10 @@ $NSRMM="nsrmm";
 ####
 
 
-####
-# set up command line switches
-#
-# just makes code easier to read
-$DEBUG=1 if $options{'D'};
-#
-#####
+
 
 print "Debug flag set\n" if $DEBUG;
-print "Test Run flag set, no configuration will be performed" if $TRUN;
+print "Test Run flag set, no configuration will be performed\n" if $TRUN;
 #
 #
 #####
@@ -145,6 +143,7 @@ sub update_stock_config {
 	my @cl_admprivs;
 	my $cl_admprivs_print;
 	my $response="y";
+	my @preconfigured;
 
 	foreach my $cn (@CLUSTERNODES) { # Nota: cn = clusternode
 		chomp($cn);
@@ -157,8 +156,7 @@ sub update_stock_config {
 
 	print "cluster hosts admin config:\n $cl_admprivs_print\n" if $DEBUG;
 
-	if ($TRUN) { 
-
+	if ($TRUN) { $response="n"; }
 
 	# Create tempfile containing nsradmin commands
 	open (NSRCMD, "> $TMPCMDFILE");
@@ -174,6 +172,7 @@ action: "$NSRTRAP -c $SNMPCOM -t $NSRTT $NSRSERVER";
 
 $response
 
+
 create type: NSR notification; 
 name: Bootstrap Backup Failure Trap;
 event: Bootstrap;
@@ -181,6 +180,7 @@ priority: alert;
 action: "$NSRTRAP -c $SNMPCOM -t $NSRTT $NSRSERVER";
 
 $response
+
 
 create type: NSR notification; 
 name: Bootstrap Trap;
@@ -190,6 +190,7 @@ action: "$NSRTRAP -c $SNMPCOM -t $NSRTT $NSRSERVER";
 
 $response
 
+
 create type: NSR notification;
 name: Savegroup Completion Trap;
 event: Savegroup;
@@ -198,15 +199,16 @@ action: "$NSRTRAP -c $SNMPCOM -t $NSRTT $NSRSERVER";
 
 $response
 
+
 NOTIFICATION
 
 	print NSRCMD  << "USERGROUP" if $USERGROUP ;
 
 update type: NSR usergroup; name: Administrators
-
 users: "host=$NSRSERVER,$cl_admprivs_print";
 
 $response
+
 
 USERGROUP
 
@@ -220,6 +222,7 @@ period: Week;
 
 $response
 
+
 SCHEDULES
 
 
@@ -230,23 +233,34 @@ SCHEDULES
 	#
 	print "running nsradmin\n";
 	
-	open (NSRADM, "NSRADMIN  -i $TMPCMDFILE 2>&1|") || die "Cannot start nsradmin: $!\n";
-	my @nsradm=<NSRADM>;
-	close (NSRADM);
+	open (NSRADMIN, "$NSRADM  -i $TMPCMDFILE 2>&1|") || die "Cannot start nsradmin: $!\n";
+	my @nsradm=<NSRADMIN>;
+	close (NSRADMIN);
 	print "nsradmin out:\n @nsradm \n\n" if $DEBUG;
+
+	#
+	#
+	foreach my $nsradm_ln (@nsradm) {
+		if ($nsradm_ln =~ m/.*failed.*already.exists.*/) {
+			print "c";
+			print "onfigured: $nsradm_ln\n" if $DEBUG;
+			my @config_ln = split(":", $nsradm_ln);
+			push (@preconfigured, $config_ln[1]);
+		} if ($nsradm_ln =~ m/.*failed.*/) {
+			print "$nsradm_ln\n";
+			die "nsradm failed\n";
+		}
+	} 
+
 
 	# remove the temp command file
 	#
-	unlink ($TMPCMDFILE);
+	#unlink ($TMPCMDFILE);
 
 }
 
 
 
 
-
-
 update_stock_config();
-
-
 
