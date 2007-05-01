@@ -28,7 +28,7 @@ use warnings;
 use vars qw($NWPACKAGES $NSRSERVER @CLUSTERNODES $NWCLUSRG $HOSTIDFILE 
 	$DSHELLTIMEOUT $INSTALLP $DSHELL $CLMOVE $CLRGINFO $TMPCMDFILE 
 	$JBCONF $NWCLCONF $RCPPROG $CLUSTERSHAREDDIR $CLADDSERV 
-	$CLSTARTSTOP $CLLSSERV $OURLOC ); 
+	$CLSTARTSTOP $CLLSSERV $OURLOC $NSRJB); 
 #
 ######
 
@@ -131,6 +131,9 @@ $TMPCMDFILE="/tmp/nsradm.tmp";
 #
 # jukebox expect script name
 $JBCONF="$OURLOC/install/jukebox_config.exp";
+#
+# nsrjb
+$NSRJB="nsrjb";
 # 
 # cluster expect script name
 # this script needs to be on both servers
@@ -345,6 +348,125 @@ sub get_hostid {
 	# return the hostid
 	return "$hostid_out[1]";
 } ## close get_hostid subroutine
+#
+#
+#####
+
+######
+#
+# Configure jukebox
+sub jukebox_conf {
+	print "Configuring Jukebox\n";
+	my $jbnode = get_clnode($NWCLUSRG);
+	open ( JBCONFIG,"$DSHELL -n $jbnode $JBCONF $NSRSERVER 2>&1|") || die "$!\n";
+	
+	my @jbconfig_out = <JBCONFIG>;
+	
+	foreach my $jbline (@jbconfig_out) {
+		if ($jbline =~ m/^.*added.*/) {
+			print "$jbline\n";
+		}
+		if ($jbline =~ m/^.*cannot.connect.*/){
+			die "@jbconfig_out \n"
+		}
+		if ($jbline =~ m/^.*RPC.error.*/){
+			die "@jbconfig_out \n" 
+		}
+		if ($jbline =~ m/^.*RAP.error.*/){
+			die "@jbconfig_out \n" 
+		}else { next;}
+	} ## end jbconfig log processing
+	#
+	#print "@jbconfig_out\n";
+}
+# end configure jukebox subsection
+######
+######
+# jbtest();
+# test for working jukebox
+#
+#
+sub jbtest {
+
+        open (JBTEST, "$NSRJB -s $NSRSERVER -S 1 2>&1|") or die "$NSRJB: $!
+\n";
+
+
+        my @jbtest_in = <JBTEST>;
+
+        foreach my $jb_ln (@jbtest_in) {
+        if ($jb_ln =~ m/.*Jukebox.*accept.commands.*/){
+                return (1);
+        } if ($jb_ln =~ m/.*No.jukeboxes.*/) {
+                return(0);}
+}
+
+}
+#
+#
+#####
+
+#####
+# fc_path_ck
+#
+sub fc_path_ck {
+
+
+        my @lsdev_comp;
+foreach my $cn (@CLUSTERNODES) { # Nota: cn = clusternode
+        chomp($cn);
+        ###
+        #
+        my $lsdev_str;
+	#
+	# use backtick system call to call lsdev to skip shell escaping
+        #  -c: specify class of device
+        #  -F: specify format
+        my @lsdev_in = `$DSHELL -n $cn "$LSDEV -c tape -F 'name physloc'"`;
+        my @lsdev_temp;
+
+        #print " lsdev output:\n @lsdev_in\n" ;
+        print "checking tape devices on $cn ";
+        foreach my $lsdev_ln (@lsdev_in) {
+                chomp($lsdev_ln);
+		#  whack off everything up to the :
+                $lsdev_ln =~ s/^.*\:\s//; 
+		# clear out the stuff that can change so we can 
+		# compare the device name and WWN-lun  
+		# $lsdev_ln =~ s/\sU[0-9]{4}.[0-9]{3}.{17}\-W/\ WWN/;
+                $lsdev_ln =~ s/\sU[0-9].*-W/\ WWN/;
+		#
+		# create an array with the devices in it
+                push (@lsdev_temp, $lsdev_ln); #
+                print "x" if (!$DEBUG);
+                print "\ncleaned up line from lsdev:\n $lsdev_ln\n" if $DEBUG;
+
+                }
+                print "\n";
+		#
+		# stringify each servers output and push onto 
+		# array
+                $lsdev_str = join( "", @lsdev_temp);
+                push (@lsdev_comp, $lsdev_str);
+                print "$cn result: $lsdev_str\n" if $DEBUG;
+                }
+        print "compare string: @lsdev_comp\n" if $DEBUG;
+	#
+	# collapse the array
+        my @uniq = keys %{{ map { $_ => 1 } @lsdev_comp }};
+	my $count = @uniq;
+	print "output count: $count\n";
+        
+	print "server output:\n @uniq\n" if (($DEBUG) || ($count != 1));
+	die "DEVICE PATH PROBLEM, CHECK PATHS AND CABLES\n" if ($count != 1);
+
+}
+#
+#
+#####
+
+
+
 
 
 #
@@ -354,6 +476,14 @@ sub get_hostid {
 #######
 # networker_install.pm "main"
 #
+#
+
+###
+# check the fibre paths
+fc_path_ck();
+#
+###
+
 ######
 # Software install
 #  Client, Storage node, Server, License Manager, NMC,  Man pages
@@ -589,39 +719,9 @@ else {
 # end get/set HostIDs subsection
 ######
 
+if (!jbtest()) {jukebox_conf();}
 
 
-######
-#
-# Configure jukebox
-
-print "Configuring Jukebox\n";
-
-my $jbnode = get_clnode($NWCLUSRG);
-
-
-open ( JBCONFIG,"$DSHELL -n $jbnode $JBCONF $NSRSERVER 2>&1|") || die "$!\n";
-
-my @jbconfig_out = <JBCONFIG>;
-
-foreach my $jbline (@jbconfig_out) {
-	if ($jbline =~ m/^.*added.*/) {
-		print "$jbline\n";
-	}
-	if ($jbline =~ m/^.*cannot.connect.*/){
-		die "@jbconfig_out \n"
-	}
-	if ($jbline =~ m/^.*RPC.error.*/){
-		die "@jbconfig_out \n" 
-	}
-	if ($jbline =~ m/^.*RAP.error.*/){
-		die "@jbconfig_out \n" 
-	}else { next;}
-} ## end jbconfig log processing
-#
-print "@jbconfig_out\n";
-# end configure jukebox subsection
-######
 
 print "NetWorker Configured\n\n";
 
