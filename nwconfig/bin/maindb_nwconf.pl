@@ -62,7 +62,7 @@ $RPOLICY="Year";
 # NetWorker Backup Schedule
 $SCHEDULE="FullAlways";
 #
-# POOLNAME must only contian alphanumeric chars
+# POOLNAME must only contain alphanumeric chars
 $POOLNAME="MainDBbackup";
 #
 # all groups configured into a pool
@@ -88,7 +88,6 @@ $ECHO="/usr/bin/echo";
 #
 # initialize some variables
 $DEBUG=0;
-$TRUN=0;
 
 $BACKUP=0;
 $CREATEPOOL=0;
@@ -98,7 +97,6 @@ $CREATEPOOL=0;
 # set up our options
 #
 # -D: debug
-# -t: test only, works very nice with -D
 # -b: create backup config
 # -p: create pools
 # -c: config file
@@ -113,7 +111,6 @@ getopts('Dtbpc:',\%options);
 if ($options{D}) { $DEBUG=1;}
 if ($options{b}) { $BACKUP=1;}
 if ($options{p}) { $CREATEPOOL=1;}
-if ($options{t}) { $TRUN=1;}
 #
 # if nothing gets selected, select all types
 if ((!$options{p}) && (!$options{b})) {
