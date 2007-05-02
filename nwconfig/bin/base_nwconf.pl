@@ -26,7 +26,7 @@ use Getopt::Std;
 #
 use vars qw($NSRSERVER $NSRADM $NSRJB $RTMP $DEBUG %options
 @CLUSTERNODES $SNMPCOM $NSRTRAP $TMPCMDFILE $NSRMM $NSRTT
-$NOTIFICATION $USERGROUP $SCHEDULES $TRUN); 
+$NOTIFICATION $USERGROUP $SCHEDULES $TRUN $VIRTUALALIASES); 
 #
 ######
 
@@ -42,10 +42,14 @@ $NOTIFICATION $USERGROUP $SCHEDULES $TRUN);
 # NetWorker server
 $NSRSERVER="sdp_nsr";
 #
+# Additional virtual servers configured on the 
+# networker server (e.g. sdp_db)
+$VIRTUALALIASES="sdp_db";
+#
 # the names of the cluster nodes primary node first
 @CLUSTERNODES=("sdp1","sdp2");
 #
-# 
+#  SNMP Community
 $SNMPCOM="public";
 #
 # trap program
@@ -204,10 +208,22 @@ NOTIFICATION
 
 	print NSRCMD  << "USERGROUP" if $USERGROUP ;
 
-update type: NSR usergroup; name: Administrators
-users: "host=$NSRSERVER,$cl_admprivs_print";
+print type: NSR usergroup; name: Administrators
+update users: "host=$NSRSERVER,$cl_admprivs_print";
 
 $response
+
+
+print type: NSR client; name: $NSRSERVER
+update remote access:$cl_admprivs_print;
+
+$response 
+
+
+aliases:$NSRSERVER, $VIRTUALALIASES;
+
+$response
+
 
 
 USERGROUP
@@ -221,6 +237,8 @@ name: FullAlways;
 period: Week;
 
 $response
+
+
 
 
 SCHEDULES
