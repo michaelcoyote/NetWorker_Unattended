@@ -31,10 +31,10 @@ use Getopt::Std;
 # Make our variables global
 # any new config variable belongs here
 #
-use vars qw($NSRSERVER $NSRJB $MMINFO $SAVEGRPCMD $SVGRP_ROOT $SVGRP 
-	$NWSCH $FSSSN $BUINLST $MAXBACKUPS $BKUPFRQ $SSFN $DEBUG
+use vars qw($NSRSERVER $NSRJB $MMINFO $SAVEGRPCMD $GROUPNAME 
+	$SCHEDULE $FSSSN $BUINLST $MAXBACKUPS $BKUPFRQ $SSFILENAME $DEBUG
 	$NSRMM $opt_D %options $SYSTIME $NOCHECK $NOLIST $NOBKUP 
-	$RECOVER $RTMP $BUCKSUM $CHECKSUM); 
+	$RECOVER $RTMP $BUCKSUM $CHECKSUM $BACKPATH ); 
 #
 ######
 
@@ -48,22 +48,24 @@ use vars qw($NSRSERVER $NSRJB $MMINFO $SAVEGRPCMD $SVGRP_ROOT $SVGRP
 #
 # the Name of the clustered
 # NetWorker server
-$NSRSERVER="stinkpad-ii";
+$NSRSERVER="sdp_nsr";
 #
 # Saveset file name
-$SSFN="bu_list";
+$SSFILENAME="bu_list";
 # fileset location/saveset name
-$FSSSN="/nsr/savelists/$SSFN";
+$FSSSN="/nsr/savelists/$SSFILENAME";
+# 
 #
-$SVGRP="main_db-test1";
+$GROUPNAME="main_db-test1";
+#
+# Backups Path
+$BACKPATH="/nsr/savelists";
+# 
 # backup in list
-$BUINLST="/nsr/savelists/$SSFN-in";
-#
-# Backup checksum file
-$BUCKSUM="/nsr/savelists/$SSFN-checksum";
-#
+$BUINLST="/backup_vol/test1_backuplist";
+# 
 # NW Backup Schedule
-$NWSCH="FullAlways";
+$SCHEDULE="FullAlways";
 #
 # number of backups to keep
 $MAXBACKUPS=3;
@@ -173,17 +175,7 @@ sub recycler {
 }
 
 
-sub checksum {
-        #create a SysV style checksum
-	# same as "sum -o file" on AIX
-        my $sum=0;
-        open (CKFILE, "$_[0]") || die "cant open $_[0]\n";
-        while (<CKFILE>){
-                $sum += unpack("%16C*",$_);}
-        $sum %= (2 ** 16) - 1;
-        close (CKFILE);
-        return ($sum);
-}
+
 	
 
 #####
@@ -209,7 +201,7 @@ sub media_ck {
 	print "mminfo output:\n@ss_in\n" if $DEBUG;
 	foreach my $ss_ln (@ss_in) {
 		chomp($ss_ln);
-		if ($ss_ln =~ m/.*$SSFN.*/) { #temp sorting of mminfo
+		if ($ss_ln =~ m/.*$SSFILENAME.*/) { #temp sorting of mminfo
 			print "$ss_ln\n" if $DEBUG;
 			my ($ssid, $clnid, $name, $nsavetime, 
 				$savetime, $volume, $sumsize,$client
@@ -265,7 +257,6 @@ sub media_ck {
 
 }
 # if available media – permit backup 
-# if no available media recycle media 
 # *and* there is at least 1 (2?) valid backup if not send SNMP trap 
 # or error
 #
@@ -329,7 +320,7 @@ sub backup_list {
 sub savegrp {
 	print "starting backup to tape\n";
 
-	open (SAVEGRP, "$SAVEGRPCMD -v -C $NWSCH -G $SVGRP 2>&1|" ) || die "$SAVEGRPCMD failed: $!";
+	open (SAVEGRP, "$SAVEGRPCMD -v -C $SCHEDULE -G $GROUPNAME 2>&1|" ) || die "$SAVEGRPCMD failed: $!";
 
 	my @svgrp_in = <SAVEGRP>;
 	my @svgrp_succeed;
@@ -351,7 +342,7 @@ sub savegrp {
 			push (@svgrp_fail, $svg_ln)
 		} if ($svg_ln =~ m/.*no.group.named.*/) {
 			push (@svgrp_fail, $svg_ln)
-		} if ($svg_ln =~ m/.*$SSFN.*/) {
+		} if ($svg_ln =~ m/.*$SSFILENAME.*/) {
 			$svg_ln =~ s/.*\://;
 			push (@svgrp_slist, $svg_ln);
 		} else { next; #print "uncaught line: $svg_ln\n"
@@ -364,27 +355,76 @@ sub savegrp {
 
 	print "NetWorker Backup File List:\n\n @svgrp_slist\n" if @svgrp_slist ;
 }
+#
+#
+#####
+
+#####
+# recover()
+# takes in full pathname and 
+# returns the path to the recovered file
+#
 
 sub recover {
 	open (RTEST, "$RECOVER -s $NSRSERVER -d $RTMP -a $_[0]  2>&1|") || die "Recovery failed: $!\n";
 	my @recovtest = <RTEST>;
 	my $r_file;
 	foreach my $r_ln (@recovtest) {
-		if ($r_ln =~ m/.*$SSFN$/) {
+		if ($r_ln =~ m/.*$SSFILENAME$/) {
 			chomp($r_ln);
 			$r_ln = $r_file;
 		} if ($r_ln =~ m/^Received.1.file.*/) {
-			print "recovery suscessful\n";
+			print "recovery successful\n";
 			return($r_file);
 		} else {next;}
 		print "problem with recovery\n";
 	}
 }
-
-sub filetest {
-	my $testfile recover($BUCKSUM);
-
+#####
+#####
+# checksum()
+# takes in a file and returns a 
+# old bsd style checksum
+#
+sub checksum {
+        #create a SysV style checksum
+	# same as "sum -o file" on AIX
+        my $sum=0;
+        open (CKFILE, "$_[0]") || die "cant open $_[0]\n";
+        while (<CKFILE>){
+                $sum += unpack("%16C*",$_);}
+        $sum %= (2 ** 16) - 1;
+        close (CKFILE);
+        return ($sum);
 }
+#
+#
+#####
+
+#####
+# filetest()
+# restores a file compares with its 
+# origional via a checksum
+#
+sub filetest {
+	my $recovered = recover($_[0]);
+	my @sums;
+	$sums[0] = checksum($_[0]);
+	$sums[1] = checksum($recovered);
+
+	if ($sums[0] == $sums[1]) {
+		print "restore checksum passed\n";
+		return(0);
+	} else {
+		print "restore checksum failed\n";
+
+
+		return(1);
+	}
+} ## end filetest sub
+#
+#
+#####
 
 #######
 # main section of program
@@ -394,7 +434,7 @@ sub filetest {
 media_ck() if (!$NOCHECK);
 backup_list() if (!$NOLIST);
 savegrp() if (!$NOBKUP);
-#filetest($BUCKSUM)
+#filetest($BUINLST)
 
 # 
 #
