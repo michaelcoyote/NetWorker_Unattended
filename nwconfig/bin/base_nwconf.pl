@@ -146,7 +146,6 @@ sub update_stock_config {
 
 	my @cl_admprivs;
 	my $cl_admprivs_print;
-	my $response="y";
 	my @preconfigured;
 
 	foreach my $cn (@CLUSTERNODES) { # Nota: cn = clusternode
@@ -160,7 +159,6 @@ sub update_stock_config {
 
 	print "cluster hosts admin config:\n $cl_admprivs_print\n" if $DEBUG;
 
-	if ($TRUN) { $response="n"; }
 
 	# Create tempfile containing nsradmin commands
 	open (NSRCMD, "> $TMPCMDFILE");
@@ -174,16 +172,12 @@ event: Resource File;
 priority: critical;
 action: "$NSRTRAP -c $SNMPCOM -t $NSRTT $NSRSERVER";
 
-$response
-
 
 create type: NSR notification; 
 name: Bootstrap Backup Failure Trap;
 event: Bootstrap;
 priority: alert;
 action: "$NSRTRAP -c $SNMPCOM -t $NSRTT $NSRSERVER";
-
-$response
 
 
 create type: NSR notification; 
@@ -192,16 +186,12 @@ event: Savegroup;
 priority: critical;
 action: "$NSRTRAP -c $SNMPCOM -t $NSRTT $NSRSERVER";
 
-$response
-
 
 create type: NSR notification;
 name: Savegroup Completion Trap;
 event: Savegroup;
 priority: alert, notice;
 action: "$NSRTRAP -c $SNMPCOM -t $NSRTT $NSRSERVER";
-
-$response
 
 
 NOTIFICATION
@@ -211,18 +201,12 @@ NOTIFICATION
 print type: NSR usergroup; name: Administrators
 update users: "host=$NSRSERVER,$cl_admprivs_print";
 
-$response
-
 
 print type: NSR client; name: $NSRSERVER
 update remote access:$cl_admprivs_print;
 
-$response 
 
-
-aliases:$NSRSERVER, $VIRTUALALIASES;
-
-$response
+update aliases:$NSRSERVER, $VIRTUALALIASES;
 
 
 
@@ -235,8 +219,6 @@ action: full full full full full full full;
 comment:Comverse full always schedule;
 name: FullAlways;
 period: Week;
-
-$response
 
 
 

@@ -62,7 +62,8 @@ $RPOLICY="Year";
 # NetWorker Backup Schedule
 $SCHEDULE="FullAlways";
 #
-$POOLNAME="MainDB-backup";
+# POOLNAME must only contian alphanumeric chars
+$POOLNAME="MainDBbackup";
 #
 # all groups configured into a pool
 # (can  be comma seperated list
@@ -81,7 +82,7 @@ $BACKPATH="/nsr/savelists";
 $TMPCMDFILE="$RTMP/$SID";
 #
 #
-$ECHO="/usr/bin/echo -e";
+$ECHO="/usr/bin/echo";
 
 ##### end variable default
 #
@@ -150,7 +151,6 @@ $NSRMM="nsrmm";
 
 
 print "Debug flag set\n" if $DEBUG;
-print "Test Run flag set, no configuration will be performed\n" if $TRUN;
 #
 #
 #####
@@ -161,6 +161,7 @@ print "Test Run flag set, no configuration will be performed\n" if $TRUN;
 sub resource_test {
 	my $resourcetype="$_[0]";
 	my $name="$_[1]";
+	print "testing for networker $resourcetype $name\n";
 
 	open(NWRTST, "$ECHO 'show name;\n\nprint NSR $resourcetype;\n' |$NSRADM -s $NSRSERVER -i - |") || die "can't open nsradmin: $!\n";
 	my @nwresourcetest=<NWRTST>;
@@ -198,10 +199,10 @@ sub resource_test {
 
 
 sub create_backup_config {
+	print "creating new backup config\n";
 
 	my @cl_admprivs;
 	my $cl_admprivs_print;
-	my $response="y";
 	my @preconfigured;
 
 	foreach my $cn (@CLUSTERNODES) { # Nota: cn = clusternode
@@ -215,10 +216,9 @@ sub create_backup_config {
 
 	print "cluster hosts admin config:\n $cl_admprivs_print\n" if $DEBUG;
 
-	if ($TRUN) { $response="n"; }
 
 	# Create tempfile containing nsradmin commands
-	open (NSRCMD, "> $TMPCMDFILE");
+	open (NSRCMD, "> $TMPCMDFILE-b");
 	#
 	# print it to the file
 
@@ -226,31 +226,12 @@ sub create_backup_config {
 	print NSRCMD  << "BACKUP";
 
 
-create type: NSR group
-name: $GROUPNAME;
-comment:Main backup for $SID;
-force incremental: No;
-success threshold: Warning;
-
-$response
+create type: NSR group; name: $GROUPNAME; comment:Main backup for $SID; force incremental: No; success threshold: Warning
 
 
 
 
-create type: NSR client;
-name: $NSRSERVER;
-backup command: save -I $BACKPATH/$SID;
-comment:$SID Backup;
-group: $GROUPNAME;
-remote access: $cl_admprivs_print;
-retention policy: $RPOLICY;
-browse policy: $BPOLICY;
-save set: $BACKPATH/$SID;
-schedule: FullAlways;
-
-$response
-
-
+create type: NSR client; name: $NSRSERVER; backup command: save -I $BACKPATH/$SID; comment:$SID Backup; group: $GROUPNAME; remote access: $cl_admprivs_print; retention policy: $RPOLICY; browse policy: $BPOLICY; save set: $BACKPATH/$SID; schedule: FullAlways
 
 
 BACKUP
@@ -292,9 +273,9 @@ BACKUP
 
 sub update_backup_config {
 
+	print "updating existing backup config\n";
 	my @cl_admprivs;
 	my $cl_admprivs_print;
-	my $response="y";
 	my @preconfigured;
 
 	foreach my $cn (@CLUSTERNODES) { # Nota: cn = clusternode
@@ -308,10 +289,9 @@ sub update_backup_config {
 
 	print "cluster hosts admin config:\n $cl_admprivs_print\n" if $DEBUG;
 
-	if ($TRUN) { $response="n"; }
 
 	# Create tempfile containing nsradmin commands
-	open (NSRCMD, "> $TMPCMDFILE");
+	open (NSRCMD, "> $TMPCMDFILE-b");
 	#
 	# print it to the file
 
@@ -319,13 +299,7 @@ sub update_backup_config {
 	print NSRCMD  << "BACKUP";
 
 
-create  type: NSR group 
-name: $GROUPNAME;
-comment:Main backup for $SID;
-force incremental: No;
-success threshold: Warning;
-
-$response
+create  type: NSR group name: $GROUPNAME; comment:Main backup for $SID; force incremental: No; success threshold: Warning
 
 
 
@@ -334,39 +308,25 @@ print  type: NSR client; name: $NSRSERVER; save set: $BACKPATH/$SID
 
 update group: $GROUPNAME;
 
-$response
-
 
 update backup command: save -I $BACKPATH/$SID;
-
-$response
 
 
 update remote access: $cl_admprivs_print;
 
 
-$response
-
 
 update retention policy: $RPOLICY;
 
 
-$response
-
 
 update browse policy: $BPOLICY;
-
-$response
 
 
 update save set: $BACKPATH/$SID;
 
-$response
-
 
 update schedule: $SCHEDULE;
-
-$response
 
 
 
@@ -416,10 +376,7 @@ BACKUP
 #
 sub create_pool_config {
 
-	my $response="y";
-
-	if ($TRUN) { $response="n"; }
-
+	print "creating new pool\n";
 	# Create tempfile containing nsradmin commands
 	open (NSRCMD, "> $TMPCMDFILE-p");
 	#
@@ -431,18 +388,7 @@ sub create_pool_config {
 
 
 
-create type: type: NSR pool
-name: $POOLNAME;
-groups: $POOLGROUPS;
-label template: Default;
-pool type: Backup;
-Recycle from other pools: No;
-Recycle to other pools: No;
-store index entries: Yes;
-
-$response
-
-
+create type: NSR pool; name: $POOLNAME; groups: $POOLGROUPS; label template: Default; pool type: Backup; Recycle from other pools: No; Recycle to other pools: No; store index entries: Yes
 
 
 POOL
@@ -493,10 +439,7 @@ POOL
 #
 sub update_pool_config {
 
-	my $response="y";
-
-	if ($TRUN) { $response="n"; }
-
+	print "updating existing pool\n";
 	# Create tempfile containing nsradmin commands
 	open (NSRCMD, "> $TMPCMDFILE-p");
 	#
@@ -508,23 +451,15 @@ sub update_pool_config {
 
 
 
-print type: type: NSR pool; name: $POOLNAME
+print type: NSR pool; name: $POOLNAME
 
 update groups:$POOLGROUPS;
-
-$response
 
 
 update Recycle from other pools: $POOLRECYCLE;
 
-$response
-
 
 update Recycle to other pools: $POOLRECYCLE;
-
-$response
-
-
 
 
 POOL
@@ -580,8 +515,8 @@ if ($BACKUP) {
 
 if ($CREATEPOOL) {
 	if (resource_test("pool",$POOLNAME)) {
-		create_pool_config();
-	} else {
 		update_pool_config();
+	} else {
+		create_pool_config();
 	}
 }
