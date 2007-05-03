@@ -94,10 +94,15 @@ print "Installer root: $OURLOC\n";
 #####
 # open logfile
 open ( LOG, ">> $OURLOC/log/networker_install.log") || die "cannot open logfile $OURLOC/log/networker_install.log: $!\n";
-#
-# redirect STDOUT and STDERR to LOG with weird typeglob magic
-*STDERR = *LOG;
-*STDOUT = *LOG;
+
+print "logging to: $OURLOC/log/networker_install.log\n";
+# redirect STDOUT and STDERR to LOG
+#*STDERR = *LOG;
+#open duplicate filehandle for STDERR
+open(STDERR, ">&LOG");
+open(STDOUT, ">&LOG");
+# redirect STDOUT to LOG with weird typeglob magic
+#*STDOUT = *LOG;
 #####
 
 print "Installer root: $OURLOC\n";
@@ -372,6 +377,9 @@ sub jukebox_conf {
 			print "$jbline\n";
 		}
 		if ($jbline =~ m/^.*cannot.connect.*/){
+			die "@jbconfig_out \n"
+		}
+		if ($jbline =~ m/^.*Jukebox.error.*/){
 			die "@jbconfig_out \n"
 		}
 		if ($jbline =~ m/^.*RPC.error.*/){
