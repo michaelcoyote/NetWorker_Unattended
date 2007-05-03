@@ -33,9 +33,9 @@ use Getopt::Std;
 #
 use vars qw($NSRSERVER $NSRJB $MMINFO $SAVEGRPCMD $GROUPNAME $LOGFILE $LOGLOC
 	$SCHEDULE $FSSSN $BUINLST $MAXBACKUPS $BKUPFRQ $SSFILENAME $DEBUG
-	$NSRMM $opt_D %options $SYSTIME $NOCHECK $NOLIST $NOBKUP 
+	$NSRMM $opt_D %options $SYSTIME $NOCHECK $NOLIST $NOBKUP $SID
 	$RECOVER $RTMP $BUCKSUM $CHECKSUM $BACKPATH $NORECOVERTEST
-	$LOGRETAIN); 
+	$LOGRETAIN $ORACLESTATUS $NOSTATCK); 
 #
 ######
 
@@ -50,19 +50,22 @@ use vars qw($NSRSERVER $NSRJB $MMINFO $SAVEGRPCMD $GROUPNAME $LOGFILE $LOGLOC
 # NetWorker server
 $NSRSERVER="sdp_nsr";
 #
+# Backups Path
+$BACKPATH="/backup_vol";
+#
+# Oracle backup status file
+$ORACLESTATUS="/backup_vol/status";
+#
 # Saveset file name
 # this should be set to an oracle sid or 
 # some other useful designation 
 $SSFILENAME="bu_list";
 #
 # fileset location/saveset name
-$FSSSN="/nsr/savelists/$SSFILENAME";
+$FSSSN="/backup_vol/$SSFILENAME";
 # 
 # SaveGroup name
 $GROUPNAME="main_db-test1";
-#
-# Backups Path
-$BACKPATH="/nsr/savelists";
 # 
 # backup in list
 $BUINLST="/backup_vol/test1_backuplist";
@@ -88,6 +91,7 @@ $LOGRETAIN="10";
 $RTMP="/nsr/tmp/";
 #
 # for skipping parts of the backup script.. for testing use only
+$NOSTATCK=0;
 $NOCHECK=0;
 $NOLIST=0;
 $NOBKUP=0;
@@ -260,7 +264,33 @@ Log(message => 'Backup Starting');
 print "Debug set\n" if $DEBUG;
 Log(message => 'Debug set', level => 'DEBUG') if $DEBUG;
 
-# 
+##### 
+#
+#
+sub status_ck { 
+	Log(sub => "status_ck", message => "checking oracle backup status file: $_[0]"); 
+	print "checking oracle backup status file: $_[0]\n"; 
+	open(STATUSFILE, "$_[0]") || DieNoisy('status_ck',1,"problem reading status file $_[0]: $!"); 
+	my @statusck = <STATUSFILE>; 
+	foreach my $status_ln (@statusck) { 
+		if($status_ln =~ s/STATUS\=//) { 
+			chomp($status_ln); 
+			if (!$status_ln) { 
+				print "oracle backup OK\n"; Log(sub => "status_ck", message => "oracle backup OK"); 
+			} else { 
+				print "oracle backup check failed\n"; 
+				DieNoisy('status_ck',1,"oracle backup check failed"); 
+			} 
+		} 
+	} 
+} 
+#
+#
+#####
+
+#####
+#
+#
 
 sub recycler {
 	#
@@ -568,7 +598,11 @@ sub filetest {
 # main section of program
 #
 
-# if $LOGRETAIN is nonzero rin the subroutine
+# 
+# 
+status_ck($ORACLESTATUS) if (!$NOSTATCK);
+#
+# if $LOGRETAIN is nonzero run the subroutine
 logremove() if ($LOGRETAIN);
 #
 # media check for savesets
