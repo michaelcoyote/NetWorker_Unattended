@@ -77,7 +77,6 @@ $MAXBACKUPS=3;
 # in seconds (e.g. 3660 = 1hr, 43920 = 12 hr, 87840 = 1 day)
 $BKUPFRQ=3660;
 #
-#
 # What is our log location
 $LOGLOC="/var/tmp";
 #
@@ -166,8 +165,9 @@ if ($options{'f'}) {
 #
 # Log function courtesy of Laramee Gerard <Gerard.Laramee@comverse.com>
 #
-$LOGFILE="$LOGLOC/$$.log";
+$LOGFILE="$LOGLOC/mainbackup$$.log";
 
+print "using $LOGFILE as the logfile\n";
 # Log function you might find at your local Wal-Mart
 sub Log {
 	my %args = (
@@ -215,7 +215,9 @@ sub Exit {
 	print "ERROR=$ENV{ERROR}\n" if exists $ENV{ERROR} and $ENV{ERROR};
 	exit $ENV{STATUS};
 }
-
+###
+#
+# a quick function to log and die a process on error
 sub DieNoisy {
 	my ($sub,$status,$error) = @_;
 	
@@ -229,10 +231,13 @@ sub DieNoisy {
 	Exit ();
  
 }
+#
+###
 
-
+###
+#
 sub logremove {
-	my @findout = `find $LOGLOC -type f -mtime +$LOGRETAIN`;
+	my @findout = `find $LOGLOC -type f -name mainbackup*.log -mtime +$LOGRETAIN`;
 
 	if (@findout) {
 
@@ -240,11 +245,14 @@ sub logremove {
         		print ("removing $file\n");
 			Log(sub => "logremove", message => "removing $file");
         		unlink ($file);
-		} else {
-			Log(sub => "logremove", message => "no logfiles to remove");
+		}
+	} else {
+		Log(sub => "logremove", message => "no logfiles to remove");
 	}
-}
 
+}
+#
+###
 
 ####
 Log(message => 'Backup Starting');
