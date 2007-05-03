@@ -305,12 +305,12 @@ sub media_ck {
 	my $bu_ave; # for estimating usage
 	my @bu_mfd; # record SSIDs marked for deletion
 	print "mminfo output:\n@ss_in\n" if $DEBUG;
-	Log(sub => 'media_ck', message => 'mminfo output:\n@ss_in',level => 'DEBUG') if $DEBUG;
+	Log(sub => 'media_ck', message => "mminfo output:\n@ss_in",level => 'DEBUG') if $DEBUG;
 	foreach my $ss_ln (@ss_in) {
 		chomp($ss_ln);
 		if ($ss_ln =~ m/.*$SSFILENAME.*/) { #temp sorting of mminfo
 			print "$ss_ln\n" if $DEBUG;
-			Log(sub => 'media_ck', message => '$ss_ln',level => 'DEBUG') if $DEBUG;
+			Log(sub => 'media_ck', message => "$ss_ln",level => 'DEBUG') if $DEBUG;
 			my ($ssid, $clnid, $name, $nsavetime, 
 				$savetime, $volume, $sumsize,$client
 			) =  split(',', $ss_ln);
@@ -318,13 +318,16 @@ sub media_ck {
 			$sumsize =~ s/\ MB/000000/;
 			$sumsize =~ s/\ GB/000000000/;
 			print "backup size: $sumsize\n" if $DEBUG;
-			Log(sub => 'media_ck', message => 'backup size: $sumsize',level => 'DEBUG') if $DEBUG;
+			Log(sub => 'media_ck', message => "backup size: $sumsize",level => 'DEBUG') if $DEBUG;
 
 			if (($SYSTIME - $BKUPFRQ) < $nsavetime) {  
-				Log(sub => 'media_ck', message => 'systime: $SYSTIME\nBackup Limit:$BKUPFRQ\nsavetime: $nsavetime, backup within time limit, wait to run or force with -f');
+				Log(level => 'WARNING',sub => 'media_ck', message => "systime: $SYSTIME\nBackup Limit:$BKUPFRQ\nsavetime: $nsavetime, backup within time limit, wait to run or force with -f");
 				print "systime: $SYSTIME\nBackup Limit:$BKUPFRQ\nsavetime: $nsavetime\n";
 				print "backup within time limit, wait to run or force with -f\n";
-				exit;
+				# TODO: set exit status to warning
+				# i.e $ENV{STATUS} = $WARNING; 
+				$ENV{INFO} = "systime: $SYSTIME  Backup Limit:$BKUPFRQ  savetime: $nsavetime, backup within time limit, wait to run or force with -f";
+				Exit;
 			}
 			push(@{$ss_out{$nsavetime}},
 				$ssid."/".$clnid,
@@ -347,11 +350,11 @@ sub media_ck {
 			$volume, $sumsize, $client
 		) =  @{$ss_out{$k}};
 		print "- backup $name from $k being processed \n" if $DEBUG;
-		Log(sub => 'media_ck', message => 'backup $name from $k being processed',level => 'DEBUG') if $DEBUG;
+		Log(sub => 'media_ck', message => "backup $name from $k being processed",level => 'DEBUG') if $DEBUG;
 		if ($MAXBACKUPS <= $bu_count) {
 			print "o";
 			print "- SSID $ssid queued for removal\n" if $DEBUG;
-			Log(sub => 'media_ck', message => 'SSID $ssid queued for removal',level => 'DEBUG') if $DEBUG;
+			Log(sub => 'media_ck', message => "SSID $ssid queued for removal",level => 'DEBUG') if $DEBUG;
 			push (@bu_mfd, $ssid);
 		}
 		print "$bu_count";
@@ -359,7 +362,7 @@ sub media_ck {
 	print "\n\n";	
 	foreach my $ssd (@bu_mfd) {
 		print "recycling SaveSet: $ssd\n";
-		Log(sub => 'media_ck', message => 'recycling SaveSet: $ssd');
+		Log(sub => 'media_ck', message => "recycling SaveSet: $ssd");
 		recycler($ssd); ## take out the cans and bottles
 
 	}
@@ -537,13 +540,15 @@ sub checksum {
 # original via a checksum
 #
 sub filetest {
+        use File::Basename;
         recover($_[0]);
+        my $rfile = basename($_[0]);
 	my $ofilesum = checksum($_[0]);
 	print "checksum for $_[0]: $ofilesum\n";
 	Log(sub => 'filetest', message => "checksum for $_[0]: $ofilesum");
-	my $rfilesum = checksum("$RTMP/$SSFILENAME");
-	print "checksum for $RTMP/$SSFILENAME: $rfilesum\n";
-	Log(sub => 'filetest', message => "checksum for $RTMP/$SSFILENAME: $rfilesum");
+	my $rfilesum = checksum("$RTMP/$rfile");
+	print "checksum for $RTMP/$rfile: $rfilesum\n";
+	Log(sub => 'filetest', message => "checksum for $RTMP/$rfile: $rfilesum");
 
         if (($ofilesum)&&($rfilesum)&&($ofilesum eq $rfilesum )) {
                 print "restore checksum passed\n";
