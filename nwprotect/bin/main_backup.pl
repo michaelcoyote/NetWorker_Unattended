@@ -34,13 +34,13 @@ use Getopt::Std;
 use vars qw($NSRSERVER $NSRJB $MMINFO $SAVEGRPCMD $GROUPNAME $LOGFILE $LOGLOC
 	$SCHEDULE $FSSSN $BUINLST $MAXBACKUPS $BKUPFRQ $SSFILENAME $DEBUG
 	$NSRMM $opt_D %options $SYSTIME $NOCHECK $NOLIST $NOBKUP 
-	$RECOVER $RTMP $BUCKSUM $CHECKSUM $BACKPATH $NORECOVERTEST ); 
+	$RECOVER $RTMP $BUCKSUM $CHECKSUM $BACKPATH $NORECOVERTEST
+	$LOGRETAIN); 
 #
 ######
 
 #####
-# set the defaults here and copy block to
-# "/usr/ngscore/config/'progname'.conf" file
+# set the defaults here and copy block to your conf file
 # 
 ## ## start config block ##
 # 
@@ -51,11 +51,14 @@ use vars qw($NSRSERVER $NSRJB $MMINFO $SAVEGRPCMD $GROUPNAME $LOGFILE $LOGLOC
 $NSRSERVER="sdp_nsr";
 #
 # Saveset file name
+# this should be set to an oracle sid or 
+# some other useful designation 
 $SSFILENAME="bu_list";
+#
 # fileset location/saveset name
 $FSSSN="/nsr/savelists/$SSFILENAME";
 # 
-#
+# SaveGroup name
 $GROUPNAME="main_db-test1";
 #
 # Backups Path
@@ -73,6 +76,14 @@ $MAXBACKUPS=3;
 # allowable backup time differental from last backup 
 # in seconds (e.g. 3660 = 1hr, 43920 = 12 hr, 87840 = 1 day)
 $BKUPFRQ=3660;
+#
+#
+# What is our log location
+$LOGLOC="/var/tmp";
+#
+# Remove logs over n days old
+# set to 0 to skip removal
+$LOGRETAIN="10";
 #
 #
 $RTMP="/nsr/tmp/";
@@ -93,15 +104,6 @@ $CHECKSUM=0;
 # set it up once and operate on it 
 # to avoid race condtions mostly
 $SYSTIME=time();
-
-#
-# Set Log location
-$LOGLOC="/var/tmp";
-
-
-
-
-
 
 
 
@@ -227,6 +229,22 @@ sub DieNoisy {
 	Exit ();
  
 }
+
+
+sub logremove {
+	my @findout = `find $LOGLOC -type f -mtime +$LOGRETAIN`;
+
+	if (@findout) {
+
+		foreach my $file (@findout) {
+        		print ("removing $file\n");
+			Log(sub => "logremove", message => "removing $file");
+        		unlink ($file);
+		} else {
+			Log(sub => "logremove", message => "no logfiles to remove");
+	}
+}
+
 
 ####
 Log(message => 'Backup Starting');
@@ -537,23 +555,21 @@ sub filetest {
 # main section of program
 #
 
-
+# if $LOGRETAIN is nonzero rin the subroutine
+logremove() if ($LOGRETAIN);
+#
+# media check for savesets
 media_ck() if (!$NOCHECK);
+#
+# create the backuplist that will be used as the saveset
 backup_list() if (!$NOLIST);
+# 
+# start the actual save
 savegrp() if (!$NOBKUP);
+# 
+# do a recovery test on the recovered $BUINLIST
 filetest($BUINLST) if (!$NORECOVERTEST);
 
-
-# 
 #
-# if failure – recycle SSID and send SNMP trap 
-# 
-#
-#
-#
-# Media validation test – restore files to test and log 
-# if fail – recycle media and send SNMP trap 
-
-
-
-
+# end
+#### 
