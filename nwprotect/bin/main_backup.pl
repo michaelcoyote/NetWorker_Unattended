@@ -43,8 +43,6 @@ use vars qw($NSRSERVER $NSRJB $MMINFO $SAVEGRPCMD $GROUPNAME $LOGFILE $LOGLOC
 # set the defaults here and copy block to your conf file
 # 
 ## ## start config block ##
-# 
-#
 #
 # the Name of the clustered
 # NetWorker server
@@ -274,16 +272,20 @@ sub status_ck {
 	my @statusck = <STATUSFILE>; 
 	foreach my $status_ln (@statusck) { 
 		if($status_ln =~ s/STATUS\=//) { 
-			chomp($status_ln); 
-			if (!$status_ln) { 
-				print "oracle backup OK\n"; Log(sub => "status_ck", message => "oracle backup OK"); 
+			chomp($status_ln);
+			print "oracle backup exit status: $status_ln\n"
+			;Log(sub => "status_ck", message => "oracle backup exit status: $status_ln");
+			if ($status_ln) { 
+				print "oracle backup OK\n"; 
+				Log(sub => "status_ck", message => "oracle backup OK"); 
 			} else { 
 				print "oracle backup check failed\n"; 
 				DieNoisy('status_ck',1,"oracle backup check failed"); 
-			} 
+			}
 		} 
 	} 
 } 
+
 #
 #
 #####
