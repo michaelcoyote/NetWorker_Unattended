@@ -34,7 +34,7 @@ use Getopt::Std;
 use vars qw($NSRSERVER $NSRJB $MMINFO $SAVEGRPCMD $GROUPNAME 
 	$SCHEDULE $FSSSN $BUINLST $MAXBACKUPS $BKUPFRQ $SSFILENAME $DEBUG
 	$NSRMM $opt_D %options $SYSTIME $NOCHECK $NOLIST $NOBKUP 
-	$RECOVER $RTMP $BUCKSUM $CHECKSUM $BACKPATH ); 
+	$RECOVER $RTMP $BUCKSUM $CHECKSUM $BACKPATH $NORECOVERTEST ); 
 #
 ######
 
@@ -81,6 +81,7 @@ $RTMP="/nsr/tmp/";
 $NOCHECK=0;
 $NOLIST=0;
 $NOBKUP=0;
+$NORECOVERTEST=0;
 #
 ##### end variable default
 #
@@ -170,13 +171,8 @@ sub recycler {
 		} else {
 			print "SaveSet $_[0] removed\n";
 			next;}
-
 	}
 }
-
-
-
-	
 
 #####
 #
@@ -273,7 +269,6 @@ sub backup_list {
 	print "creating filelist for $FSSSN\n";
 	open (BU_INFILE, "$BUINLST") || die "Error reading $BUINLST, stopped: $!\n";
 	my @backupset_in = <BU_INFILE>;
-	
 	my @backupset_out; # put the files here
 	my @backupck_out; # put the files here
 	my @fnf; # missing files for backup report
@@ -295,15 +290,15 @@ sub backup_list {
 	if (!@backupset_out) {
 		die "backup set empty";
 	}
-	# create test file w/ timestamp & filelist
-	# for now add the backup file to the list
+	# for now add the backup files to the list
 	push (@backupset_out,$BUINLST);
-	push (@backupset_out,$bkupfileout);
+	push (@backupset_out,$FSSSN);
 	#
 	# write the actual backup list
 	open (BU_OUTFILE, "> $FSSSN") || die "Error writing $FSSSN, stopped: $!\n";
 	
 	foreach my $bkupfileout (@backupset_out){
+		print "$bkupfileout\n" if $DEBUG;
 		print BU_OUTFILE "$bkupfileout\n";
 	}
 	# 
@@ -361,36 +356,45 @@ sub savegrp {
 
 #####
 # recover()
-# takes in full pathname and 
+# takes in full pathname and
 # returns the path to the recovered file
 #
 
 sub recover {
-	open (RTEST, "$RECOVER -s $NSRSERVER -d $RTMP -a $_[0]  2>&1|") || die "Recovery failed: $!\n";
-	my @recovtest = <RTEST>;
-	my $r_file;
-	foreach my $r_ln (@recovtest) {
-		if ($r_ln =~ m/.*$SSFILENAME$/) {
-			chomp($r_ln);
-			$r_ln = $r_file;
-		} if ($r_ln =~ m/^Received.1.file.*/) {
-			print "recovery successful\n";
-			return($r_file);
-		} else {next;}
-		print "problem with recovery\n";
-	}
+	print "recovering $_[0]\n";
+        open (RTEST, "$RECOVER -s $NSRSERVER -f -d $RTMP -a $_[0]  2>&1|") || die "Recovery failed: $!\n";
+        my @recovtest = <RTEST>;
+	print "DEBUG recover output\n @recovtest \n";
+        my $r_file;
+        foreach my $r_ln (@recovtest) {
+                chomp($r_ln);
+                if ($r_ln =~ m/^Received.1.file.*/) {
+                        print "recovery successful\n";
+                        return($r_file);
+                } if ($r_ln =~ m/^Nothing.to.recover.*/) {
+                        print "recovery failed\n";
+                        return($r_file);
+                } else {next;}
+                print "problem with recovery\n";
+		print "recover output:\n @recovtest\n";
+        }
 }
+#
+#
 #####
+
 #####
 # checksum()
-# takes in a file and returns a 
+# takes in a file and returns a
 # old bsd style checksum
 #
 sub checksum {
         #create a SysV style checksum
-	# same as "sum -o file" on AIX
+        # same as "sum -o file" on AIX
+	print "entering checksum subroutine\n";
         my $sum=0;
-        open (CKFILE, "$_[0]") || die "cant open $_[0]\n";
+        open (CKFILE, "$_[0]") || die "cant open file for checksumming $_[0]\n";
+	print "creating checksum for $_[0]\n";
         while (<CKFILE>){
                 $sum += unpack("%16C*",$_);}
         $sum %= (2 ** 16) - 1;
@@ -403,24 +407,26 @@ sub checksum {
 
 #####
 # filetest()
-# restores a file compares with its 
-# origional via a checksum
+# restores a file compares with its
+# original via a checksum
 #
 sub filetest {
-	my $recovered = recover($_[0]);
-	my @sums;
-	$sums[0] = checksum($_[0]);
-	$sums[1] = checksum($recovered);
-
-	if ($sums[0] == $sums[1]) {
-		print "restore checksum passed\n";
-		return(0);
-	} else {
-		print "restore checksum failed\n";
+        recover($_[0]);
+	my $ofilesum = checksum($_[0]);
+	print "checksum for $_[0]: $ofilesum\n";
+	my $rfilesum = checksum("$RTMP/$SSFILENAME");
+	print "checksum for $RTMP/$SSFILENAME: $rfilesum\n";
 
 
-		return(1);
-	}
+        if (($ofilesum)&&($rfilesum)&&($ofilesum eq $rfilesum )) {
+                print "restore checksum passed\n";
+                return(0);
+        } else {
+                print "restore checksum failed\n";
+
+
+                return(1);
+        }
 } ## end filetest sub
 #
 #
@@ -434,7 +440,8 @@ sub filetest {
 media_ck() if (!$NOCHECK);
 backup_list() if (!$NOLIST);
 savegrp() if (!$NOBKUP);
-#filetest($BUINLST)
+filetest($BUINLST) if (!$NORECOVERTEST);
+
 
 # 
 #
