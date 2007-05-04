@@ -24,7 +24,7 @@ use vars qw($NSRSERVER $NSRJB $MMINFO $SAVEGRPCMD $GROUPNAME $LOGFILE $LOGLOC
 	$SCHEDULE $FSSSN $BUINLST $MAXBACKUPS $BKUPFRQ $SSFILENAME $DEBUG
 	$NSRMM $opt_D %options $SYSTIME $NOCHECK $NOLIST $NOBKUP $SID
 	$RECOVER $RTMP $BUCKSUM $CHECKSUM $BACKPATH $NORECOVERTEST
-	$LOGRETAIN $ORACLESTATUS $NOSTATCK); 
+	$LOGRETAIN $ORACLESTATUS $NOSTATCK $DIRECTEDRECOV); 
 #
 ######
 
@@ -100,12 +100,12 @@ $SYSTIME=time();
 #####
 # set up our vars
 #
-# -f: force a backup
+# -d: directed recovery
 # -D: debug
 # -c: config file
 #
 #
-getopts('fDc:',\%options);
+getopts('d:Dc:',\%options);
 #
 #
 
@@ -122,6 +122,15 @@ if ($options{c}) {
 		print "config file loaded\n";
 	} else {print "Config file not found, using defaults\n";}
 }
+
+if ($options{d}) {
+	if ( -d "$options{d}") {
+		print "using recovery directory: $options{d}\n";
+		$DIRECTEDRECOV="$options{d}";
+	} else { die "$options{d} not found\n";
+	}
+}
+
 #####
 # nsrjb location
 $NSRJB="nsrjb";
@@ -160,6 +169,9 @@ $count,   $tmp_ssinfo[2],                   $tmp_ssinfo[4]
 	print "\nChoose from the following savesets:\n\n";
         foreach my $getss_ln (reverse @getss_out) {
                 if($getss_ln =~ m/^volume.*/) {next;}
+                if($getss_ln =~ m/^mminfo.*/) {
+			die "problem with mminfo query\n$getss_ln\n";
+		}
                 @tmp_ssinfo = split(/,/,$getss_ln);
 		write;
                 push( @recoverysets,$count.",".$tmp_ssinfo[2].",".$tmp_ssinfo[4]);
@@ -177,6 +189,7 @@ $count,   $tmp_ssinfo[2],                   $tmp_ssinfo[4]
 #
 #
 sub my_selector {
+	my %keyed_setlist;
 	foreach my $ss_ln (@_){
 		my ($key,$t,$ssid) = split(/,/,$ss_ln);
 		${keyed_setlist{$key}} = [] unless exists ${keyed_setlist{$key}};
@@ -205,30 +218,32 @@ sub my_selector {
 
 sub recover_ss {
 	print "recovering $_[0]\n";
-	my $dir = " -d $DIRECTEDRECOV "  if $DIRECTEDRECOV;
-        open (RTEST, "$RECOVER -s $NSRSERVER -f $dir -S $_[0]  2>&1|") || die "Recovery failed: $!);
-        my @recovtest = <RTEST>;
-	print "DEBUG recover output\n @recovtest \n" if $DEBUG;
+	my $dir = " -d $DIRECTEDRECOV " if $DIRECTEDRECOV;
+        open (RTEST, "$RECOVER -s $NSRSERVER -f $dir -S $_[0]  2>&1|") || die "Recovery failed: $!\n";
+        my @recov = <RTEST>;
+	print "DEBUG recover output\n @recov \n" if $DEBUG;
         my $r_file;
-        foreach my $r_ln (@recovtest) {
+        foreach my $r_ln (@recov) {
                 chomp($r_ln);
-                if ($r_ln =~ m/^Received.1.file.*/) {
+                if ($r_ln =~ m/^Received.[0-9]*file.*/) {
                         print "recovery successful\n"; 
                         return($r_file);
                 } if ($r_ln =~ m/^Nothing.to.recover.*/) {
                         print "recovery failed\n";
-			die "problem with recovery, file not found. recover output:\n @recovtest);
+			die "problem with recovery, file not found. recover output:\n @recov\n";
                         return($r_file);
                 } else {next;}
                 print "problem with recovery\n";
-		print "recover output:\n @recovtest\n";
-		die "problem with recovery, recover output:\n @recovtest";
+		print "recover output:\n @recov\n";
+		die "problem with recovery, recover output:\n @recov\n";
 
         }
 }
 
+#
+#
+# main execution
 
-
-print(my_selector(get_savesets()));
+recover_ss(my_selector(get_savesets()));
 
 
