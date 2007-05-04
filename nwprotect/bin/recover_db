@@ -197,6 +197,7 @@ sub my_selector {
 	}
 	while (){
 		print 'Select the desired set # or press e to exit [1]: ';
+		print "\n";
 		$| = 1;			# force a flush after our print
 		my $input = <>;		# get the input 
 		chomp($input);
@@ -217,8 +218,11 @@ sub my_selector {
 #
 
 sub recover_ss {
-	print "recovering $_[0]\n";
-	my $dir = " -d $DIRECTEDRECOV " if $DIRECTEDRECOV;
+	print "recovering $_[0]\n"; 
+	if ($DIRECTEDRECOV) {
+		my $dir = " -d $DIRECTEDRECOV ";
+	} else {
+
         open (RTEST, "$RECOVER -s $NSRSERVER -f $dir -S $_[0]  2>&1|") || die "Recovery failed: $!\n";
         my @recov = <RTEST>;
 	print "DEBUG recover output\n @recov \n" if $DEBUG;
@@ -226,12 +230,10 @@ sub recover_ss {
         foreach my $r_ln (@recov) {
                 chomp($r_ln);
                 if ($r_ln =~ m/^Received.[0-9]*file.*/) {
-                        print "recovery successful\n"; 
-                        return($r_file);
+                        print "\n@recov\nrecovery successful\n"; 
                 } if ($r_ln =~ m/^Nothing.to.recover.*/) {
                         print "recovery failed\n";
 			die "problem with recovery, file not found. recover output:\n @recov\n";
-                        return($r_file);
                 } else {next;}
                 print "problem with recovery\n";
 		print "recover output:\n @recov\n";
