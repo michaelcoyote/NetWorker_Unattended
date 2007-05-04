@@ -24,10 +24,10 @@ use Getopt::Std;
 # Make our variables global
 # any new config variable belongs here
 #
-use vars qw($NSRSERVER $NSRADM $RTMP $DEBUG %options @CLUSTERNODES  
-$TMPCMDFILE $TRUN $SID $BPOLICY $RPOLICY $POOLNAME $SAVEGROUP $NSRMM
-$BACKPATH $BACKUP $CREATEPOOL $POOLRECYCLE $GROUPNAME $POOLGROUPS
-$SCHEDULE $ECHO @preconfigured); 
+use vars qw($NSRSERVER $NSRCLIENT $NSRADM $RTMP $DEBUG %options 
+@CLUSTERNODES  $TMPCMDFILE $TRUN $SID $BPOLICY $RPOLICY $POOLNAME 
+$SAVEGROUP $NSRMM $BACKPATH $BACKUP $CREATEPOOL $POOLRECYCLE 
+$GROUPNAME $POOLGROUPS $SCHEDULE $ECHO @preconfigured); 
 #
 ######
 
@@ -42,6 +42,9 @@ $SCHEDULE $ECHO @preconfigured);
 # the Name of the clustered
 # NetWorker server
 $NSRSERVER="sdp_nsr";
+#
+#
+$NSRCLIENT="sdp_nsr";
 #
 # the names of the cluster nodes primary node first
 @CLUSTERNODES=("sdp1","sdp2");
@@ -301,12 +304,12 @@ create  type: NSR group name: $GROUPNAME; comment:Main backup for $SID; force in
 
 
 
-print  type: NSR client; name: $NSRSERVER; save set: $BACKPATH/$SID
+print  type: NSR client; name: $NSRCLIENT; save set: $BACKPATH/$SID
 
 update group: $GROUPNAME;
 
 
-update backup command: save -I $BACKPATH/$SID;
+update backup command: save -c $NSRCLIENT -I $BACKPATH/$SID;
 
 
 update remote access: $cl_admprivs_print;
@@ -385,7 +388,14 @@ sub create_pool_config {
 
 
 
-create type: NSR pool; name: $POOLNAME; groups: $POOLGROUPS; label template: Default; pool type: Backup; Recycle from other pools: No; Recycle to other pools: No; store index entries: Yes
+create type: NSR pool;
+name: $POOLNAME;
+groups: $POOLGROUPS;
+label template: Default;
+pool type: Backup;
+Recycle from other pools: No;
+Recycle to other pools: No;
+store index entries: Yes;
 
 
 POOL

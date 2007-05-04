@@ -26,7 +26,7 @@ use Getopt::Std;
 #
 use vars qw($NSRSERVER $NSRADM $NSRJB $RTMP $DEBUG %options
 @CLUSTERNODES $SNMPCOM $NSRTRAP $TMPCMDFILE $NSRMM $NSRTT
-$NOTIFICATION $USERGROUP $SCHEDULES $TRUN $VIRTUALALIASES); 
+$NOTIFICATION $USERGROUP $SCHEDULES $VIRTUALALIASES); 
 #
 ######
 
@@ -71,7 +71,6 @@ $DEBUG=0;
 $NOTIFICATION=0;
 $USERGROUP=0;
 $SCHEDULES=0;
-$TRUN=0;
 
 
 #####
@@ -82,7 +81,6 @@ $TRUN=0;
 # -s: create schedules
 # -u: update usergroups
 # -c: config file
-# -t: test only, works very nice with -D
 #
 #
 getopts('Dtnsuc:',\%options);
@@ -101,7 +99,6 @@ if ($options{t}) { $TRUN=1;}
 if ((!$SCHEDULES) && (!$USERGROUP) && (!$NOTIFICATION)) {
 	$NOTIFICATION=1;
 	$USERGROUP=1;
-	$SCHEDULES=1;
 }
 
 
@@ -219,6 +216,8 @@ action: full full full full full full full;
 comment:Comverse full always schedule;
 name: FullAlways;
 period: Week;
+
+
 
 
 
