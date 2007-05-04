@@ -1,0 +1,234 @@
+#!/usr/bin/perl
+#
+#
+#
+
+###### 
+# Do not remove or disable without good documented reason.
+#
+use strict;
+use warnings;
+# addtional 
+use Data::Dumper;
+use Getopt::Std;
+#
+######
+
+######
+# Variable processing
+# 
+# Make our variables global
+# any new config variable belongs here
+#
+use vars qw($NSRSERVER $NSRJB $MMINFO $SAVEGRPCMD $GROUPNAME $LOGFILE $LOGLOC
+	$SCHEDULE $FSSSN $BUINLST $MAXBACKUPS $BKUPFRQ $SSFILENAME $DEBUG
+	$NSRMM $opt_D %options $SYSTIME $NOCHECK $NOLIST $NOBKUP $SID
+	$RECOVER $RTMP $BUCKSUM $CHECKSUM $BACKPATH $NORECOVERTEST
+	$LOGRETAIN $ORACLESTATUS $NOSTATCK); 
+#
+######
+
+#####
+# set the defaults here and copy block to your conf file
+# 
+## ## start config block ##
+#
+# the Name of the clustered
+# NetWorker server
+$NSRSERVER="sdp_nsr";
+#
+# Backups Path
+$BACKPATH="/backup_vol";
+#
+# Oracle backup status file
+$ORACLESTATUS="/backup_vol/status";
+#
+# Saveset file name
+# this should be set to an oracle sid or 
+# some other useful designation 
+$SSFILENAME="bu_list";
+#
+# fileset location/saveset name
+$FSSSN="/backup_vol/$SSFILENAME";
+# 
+# SaveGroup name
+$GROUPNAME="main_db-test1";
+# 
+# backup in list
+$BUINLST="/backup_vol/test1_backuplist";
+# 
+# NW Backup Schedule
+$SCHEDULE="FullAlways";
+#
+# number of backups to keep
+$MAXBACKUPS=3;
+#
+# allowable backup time differental from last backup 
+# in seconds (e.g. 3660 = 1hr, 43920 = 12 hr, 87840 = 1 day)
+$BKUPFRQ=3660;
+#
+# What is our log location
+$LOGLOC="/var/tmp";
+#
+# Remove logs over n days old
+# set to 0 to skip removal
+$LOGRETAIN="10";
+#
+#
+$RTMP="/nsr/tmp/";
+#
+# for skipping parts of the backup script.. for testing use only
+$NOSTATCK=0;
+$NOCHECK=0;
+$NOLIST=0;
+$NOBKUP=0;
+$NORECOVERTEST=0;
+#
+##### end variable default
+#
+# set up some variables
+$DEBUG=0;
+
+$CHECKSUM=0;
+#
+# set it up once and operate on it 
+# to avoid race condtions mostly
+$SYSTIME=time();
+
+
+
+#####
+# set up our vars
+#
+# -f: force a backup
+# -D: debug
+# -c: config file
+#
+#
+getopts('fDc:',\%options);
+#
+#
+
+##### read in config files
+if ($options{c}) {
+	if ( -e "$options{c}") { 
+		print "reading $options{c}\n";
+		no strict 'refs';
+		open ( CONF, "$options{c}") || die ("cannot open config: $!\n");
+		my $conf = join "", <CONF>; 
+		close CONF;
+		eval $conf;
+		die"Couldn't eval config file: $@\n" if $@;
+		print "config file loaded\n";
+	} else {print "Config file not found, using defaults\n";}
+}
+#####
+# nsrjb location
+$NSRJB="nsrjb";
+#
+# nsrmm location
+$NSRMM="nsrmm";
+# 
+# mminfo location
+$MMINFO="mminfo -s $NSRSERVER";
+# 
+# savegrp (save group) command
+$SAVEGRPCMD="savegrp";
+#
+# networker recover
+$RECOVER="recover";
+####
+
+#
+# get the savesets and format them nicely
+#
+sub get_savesets {
+
+	open( GETSAVESET, "$MMINFO -q name=\"$FSSSN\" -v -xc, 2>&1|");
+        my @recoverysets;
+	my @tmp_ssinfo;
+        my @getss_out = <GETSAVESET>;
+	my $count=1;
+format top =
+ Set #    Date and Time      SaveSet ID 
+.
+
+format =
+@|||| @||||||||||||||||||||| @<<<<<<<<<<<<
+$count,   $tmp_ssinfo[2],                   $tmp_ssinfo[4]
+.      
+	print "\nChoose from the following savesets:\n\n";
+        foreach my $getss_ln (reverse @getss_out) {
+                if($getss_ln =~ m/^volume.*/) {next;}
+                @tmp_ssinfo = split(/,/,$getss_ln);
+		write;
+                push( @recoverysets,$count.",".$tmp_ssinfo[2].",".$tmp_ssinfo[4]);
+
+                $count++;
+        }
+	return(@recoverysets);
+}
+#
+#
+######
+
+######
+#
+#
+#
+sub my_selector {
+	foreach my $ss_ln (@_){
+		my ($key,$t,$ssid) = split(/,/,$ss_ln);
+		${keyed_setlist{$key}} = [] unless exists ${keyed_setlist{$key}};
+		push(@{$keyed_setlist{$key}} => $ssid);
+	}
+	while (){
+		print 'Select the desired set # or press e to exit [1]: ';
+		$| = 1;			# force a flush after our print
+		my $input = <>;		# get the input 
+		chomp($input);
+		$input=1 if (!$input);
+		if ($input eq "e") {
+			exit;}
+		if (!defined(@{$keyed_setlist{$input}})) {
+			print "no such set, please select a listed set or press e to exit\n";
+			next;}
+		return(@{$keyed_setlist{$input}});
+	}
+
+}
+#####
+# recover_ss()
+# takes in the SSID and
+# restores
+#
+
+sub recover_ss {
+	print "recovering $_[0]\n";
+	my $dir = " -d $DIRECTEDRECOV "  if $DIRECTEDRECOV;
+        open (RTEST, "$RECOVER -s $NSRSERVER -f $dir -S $_[0]  2>&1|") || die "Recovery failed: $!);
+        my @recovtest = <RTEST>;
+	print "DEBUG recover output\n @recovtest \n" if $DEBUG;
+        my $r_file;
+        foreach my $r_ln (@recovtest) {
+                chomp($r_ln);
+                if ($r_ln =~ m/^Received.1.file.*/) {
+                        print "recovery successful\n"; 
+                        return($r_file);
+                } if ($r_ln =~ m/^Nothing.to.recover.*/) {
+                        print "recovery failed\n";
+			die "problem with recovery, file not found. recover output:\n @recovtest);
+                        return($r_file);
+                } else {next;}
+                print "problem with recovery\n";
+		print "recover output:\n @recovtest\n";
+		die "problem with recovery, recover output:\n @recovtest";
+
+        }
+}
+
+
+
+print(my_selector(get_savesets()));
+
+
