@@ -100,12 +100,11 @@ $SYSTIME=time();
 #####
 # set up our vars
 #
-# -d: directed recovery
 # -D: debug
 # -c: config file
 #
 #
-getopts('d:Dc:',\%options);
+getopts('Dc:',\%options);
 #
 #
 
@@ -123,13 +122,6 @@ if ($options{c}) {
 	} else {print "Config file not found, using defaults\n";}
 }
 
-if ($options{d}) {
-	if ( -d "$options{d}") {
-		print "using recovery directory: $options{d}\n";
-		$DIRECTEDRECOV="$options{d}";
-	} else { die "$options{d} not found\n";
-	}
-}
 
 #####
 # nsrjb location
@@ -221,12 +213,14 @@ sub recover_ss {
 	print "recovering $_[0]\n";
 	my $ltest=1;
 	while ($ltest){
-		print "saveset recovery is destructive, press Y to recover\n";
+		print "saveset recovery is destructive, press Y to recover or e to exit\n";
 		$| = 1;			# force a flush after our print
 		my $input = <>;		# get the input 
 		chomp($input);
 		$input=1 if (!$input);
 		if ($input ne "Y") {
+			next;
+		} if ($input eq "e") {
 			next;
 		} if ($input eq "Y") {
 			$ltest=0;
