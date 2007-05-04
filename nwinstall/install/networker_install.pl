@@ -18,7 +18,6 @@ use warnings;
 ######
 
 
-
 ######
 # Variable processing
 # 
@@ -27,8 +26,7 @@ use warnings;
 #
 use vars qw($NWPACKAGES $NSRSERVER @CLUSTERNODES $NWCLUSRG $HOSTIDFILE 
 	$DSHELLTIMEOUT $INSTALLP $DSHELL $CLMOVE $CLRGINFO $TMPCMDFILE 
-	$JBCONF $NWCLCONF $RCPPROG $CLUSTERSHAREDDIR $CLADDSERV 
-	$CLSTARTSTOP $CLLSSERV $OURLOC $LSDEV $NSRJB $DEBUG) ; 
+	$JBCONF $NWCLCONF $RCPPROG $CLUSTERSHAREDDIR); 
 #
 ######
 
@@ -40,11 +38,8 @@ use vars qw($NWPACKAGES $NSRSERVER @CLUSTERNODES $NWCLUSRG $HOSTIDFILE
 # 
 ## ## start config block ##
 #
-# our location
-$OURLOC="/usr/ngscore";	#
-#
 # NetWorker packages location
-$NWPACKAGES="$OURLOC/sw/networker";
+$NWPACKAGES="/usr/ngscore/sw/networker";
 # 
 # the Name of the clustered
 # NetWorker server
@@ -60,57 +55,18 @@ $NWCLUSRG="NetWorker_RG";
 $HOSTIDFILE="/nsr/res/hostids";
 #
 # time out for dsh command  adjust as necessary
-$DSHELLTIMEOUT="180";
+$DSHELLTIMEOUT="60";
 #
-# rcp program..  could be scp if so inclined
+# rsh program..  could be ssh if so inclined
 $RCPPROG="/usr/bin/rcp";
 #
 # the name of the shared cluster mount point
 # for NetWorker
 $CLUSTERSHAREDDIR="/nsr_shared_mnt_pt";
 #
-# Cluster Start/Stop script
-$CLSTARTSTOP="/usr/bin/nw_hacmp.lc";
-#
 ## ## end config block ##
-
-
-##### read in config files
-if ( -e "../config/networker_install.conf") { 
-	no strict 'refs';
-	open ( CONF, "../config/networker_install.conf") || die "cannot open config: $!\n";
-	my $conf = join "", <CONF>; 
-	close CONF;
-	eval $conf;
-	die "Couldn't eval config file: $@\n" if $@;
-
-	print "\n\nconfig file loaded\n";
-} else {print "\n\nConfig file not found, using defaults\n";}
-#####
-
-
-print "Installer root: $OURLOC\n";
-
-#####
-# open logfile
-open ( LOG, ">> $OURLOC/log/networker_install.log") || die "cannot open logfile $OURLOC/log/networker_install.log: $!\n";
-
-print "logging to: $OURLOC/log/networker_install.log\n";
-# redirect STDOUT and STDERR to LOG
-#*STDERR = *LOG;
-#open duplicate filehandle for STDERR
-open(STDERR, ">&LOG");
-open(STDOUT, ">&LOG");
-# redirect STDOUT to LOG with weird typeglob magic
-#*STDOUT = *LOG;
-#####
-
-print "Installer root: $OURLOC\n";
-
-
-#######
 # Don't touch these without good reason
-# 
+# if necessary copy to config file and set there
 #
 # installp path
 $INSTALLP="/usr/sbin/installp";
@@ -135,28 +91,31 @@ $CLRGINFO="/usr/es/sbin/cluster/utilities/clRGinfo -s";
 $TMPCMDFILE="/tmp/nsradm.tmp";
 #
 # jukebox expect script name
-$JBCONF="$OURLOC/install/jukebox_config.exp";
-#
-# nsrjb command
-$NSRJB="nsrjb";
+$JBCONF="/usr/ngscore/install/jukebox_config.exp";
+# 
 # cluster expect script name
 # this script needs to be on both servers
 #
-$NWCLCONF="$OURLOC/install/cluster_config.exp";
-#
-# the add server command
-$CLADDSERV="/usr/es/sbin/cluster/utilities/claddserv";
-#
-# the cllsserv command
-$CLLSSERV="/usr/es/sbin/cluster/utilities/cllsserv";
-#
-#lsdev command
-$LSDEV="/usr/sbin/lsdev";
-#
+$NWCLCONF="/usr/ngscore/install/cluster_config.exp";
+# 
 ##### end variable defaults
 
 
-
+#####
+# open logfile
+open ( LOG, " >> /usr/ngscore/log/$0.log") || die "cannot open logfile: $!\n";
+#
+# redirect STDOUT and STDERR to LOG with weird typeglob magic
+*STDERR = *LOG;
+*STDOUT = *LOG;
+#
+# read in config files
+if ( [-e "/usr/ngscore/config/$0.conf"] ) { 
+	no strict 'refs'; 
+	do "/usr/ngscore/config/$0.conf";
+	print "\n\nconfig file loaded\n";
+} else {print "\n\nConfig file not found, using defaults\n";}
+#####
 
 #####
 #
@@ -173,9 +132,6 @@ print "\n\n\nStarting Install\n\n";
 
 ######
 # move_clnode()
-#
-# Subroutine to move the clusternode from one
-# HACMP cluster node to another.
 #
 # Subroutine to move the clusternode from one
 # HACMP cluster node to another.
@@ -239,7 +195,7 @@ sub move_clnode {
 sub get_clnode {
 	# loop through each Resource Group
 	#networker_install.pl
-	my $srg = "$_[0]";
+	my $srg = "NetWorker_RG";
 	open ( RGINFO, "$CLRGINFO $srg 2>&1|") || die "$CLRGINFO failed: $!\n";
 	#open ( RGINFO, "RGinfo_sdp2") || die "$CLRGINFO failed: $!\n";
 	my @rgstatus=<RGINFO>;
@@ -252,51 +208,33 @@ sub get_clnode {
 		print "l";
 		if ($statlin =~ m/^.*ONLINE.*/) {
 		my @rgloc_out=(split(/:/,$statlin));
-			# only worried about if the actual
-			# RG exists on the system and 
-			# where it is
-			print "x";
-                        $nloc_out= $rgloc_out[2];
-			$nloc_out =~ s/^\s+//;
-			$nloc_out =~ s/\s+$//;
+			while ($rgloc_out[2] eq $rgloc_out[8]) {
+				# only worried about if the actual
+				# RG exists on the system and 
+				# where it is
+				print "x";
+                                $nloc_out= $rgloc_out[8];
+				$nloc_out =~ s/^\s+//;
+				$nloc_out =~ s/\s+$//;
+				return ($nloc_out);
+				}
 		} else {
 			# don't care about offline nodes
 			print".";
 			next;
 		} 
-	print "\ncurrent node is $nloc_out\n";
-	return($nloc_out);
 	} ## close "ONLINE" check
 	while (!$nloc_out) { 
-		die "\nResource Group $srg not avalible or clustering not started\n"; 
+		die "\n no resource group $srg or clustering not started\n"; 
 	} ## close status loop check
 } ## close rginfo_clnode subroutine
 #
 #
 #######
 
-#######
-# networker start and stop uglyness
-#
-#
-sub nw_start {
-	# this is lazy, but it will work
-	print "starting Networker on $_[0]\n";
-	system ("$DSHELL -n $_[0] $CLSTARTSTOP start");
-	# nasty bug makes die() not work
-	if ($?) {die "command $DSHELL -n $_[0] $CLSTARTSTOP start failed: $?\n";}
-print "Networker started on $_[0]\n";
-}
 
-sub nw_stop {
-	print "stopping Networker on $_[0]\n";
-	system ("$DSHELL -n $_[0] $CLSTARTSTOP stop");
-	# nasty bug makes die() not work
-	if ($?) {die "command $DSHELL -n $_[0] $CLSTARTSTOP stop failed: $?\n";} 
-print "Networker stopped on $_[0]\n";
-} 
-#
-#
+
+
 ###### 
 # get_hostid()
 #
@@ -343,143 +281,15 @@ sub get_hostid {
 	unlink ($TMPCMDFILE);
 	#
 	# clean up the hostid from nsradmin
-	my @hostid_out;
-	foreach my $hid (@hostid_in) {
-		if ($hid =~ m/.*host.id.*/) {
-
-			@hostid_out = split(/:/, $hid);
-			$hostid_out[1] =~ s/\;//;
-			$hostid_out[1] =~ s/\ //;
-			chomp($hostid_out[1]);
-		}
-	}
 	#
-	if (!$hostid_out[1]) {die "no hostid found, stopped\n";}
+	my @hostid_out = split(/:/, $hostid_in[0]);
+	$hostid_out[1] =~ s/\;//;
+	$hostid_out[1] =~ s/\ //;
+	chomp($hostid_out[1]);
+	#
 	# return the hostid
 	return "$hostid_out[1]";
 } ## close get_hostid subroutine
-#
-#
-#####
-
-######
-#
-# Configure jukebox
-sub jukebox_conf {
-	print "Configuring Jukebox\n";
-	my $jbnode = get_clnode($NWCLUSRG);
-	open ( JBCONFIG,"$DSHELL -n $jbnode $JBCONF $NSRSERVER 2>&1|") || die "$!\n";
-	
-	my @jbconfig_out = <JBCONFIG>;
-	
-	foreach my $jbline (@jbconfig_out) {
-		if ($jbline =~ m/^.*added.*/) {
-			print "$jbline\n";
-		}
-		if ($jbline =~ m/^.*cannot.connect.*/){
-			die "@jbconfig_out \n"
-		}
-		if ($jbline =~ m/^.*Jukebox.error.*/){
-			die "@jbconfig_out \n"
-		}
-		if ($jbline =~ m/^.*RPC.error.*/){
-			die "@jbconfig_out \n" 
-		}
-		if ($jbline =~ m/^.*RAP.error.*/){
-			die "@jbconfig_out \n" 
-		}else { next;}
-	} ## end jbconfig log processing
-	#
-	print "@jbconfig_out\n" if $DEBUG;
-}
-# end configure jukebox subsection
-######
-
-######
-# jbtest();
-# test for working jukebox
-#
-#
-sub jbtest {
-	# try to connect to with jbconfig
-        open (JBTEST, "$NSRJB -s $NSRSERVER -S 1 2>&1|") or die "$NSRJB: $!
-\n";
-
-        my @jbtest_in = <JBTEST>;
-
-        foreach my $jb_ln (@jbtest_in) {
-        if ($jb_ln =~ m/.*Jukebox.*accept.commands.*/){
-                return (1);
-        } if ($jb_ln =~ m/.*No.jukeboxes.*/) {
-                return(0);}
-	} ## close output parsing loop
-
-} ## close sub
-#
-#
-#####
-
-#####
-# fc_path_ck
-#
-sub fc_path_ck {
-
-
-        my @lsdev_comp;
-foreach my $cn (@CLUSTERNODES) { # Nota: cn = clusternode
-        chomp($cn);
-        ###
-        #
-        my $lsdev_str;
-	#
-	# use backtick system call to call lsdev to skip shell escaping
-        #  -c: specify class of device
-        #  -F: specify format
-        my @lsdev_in = `$DSHELL -n $cn "$LSDEV -c tape -F 'name physloc'"`;
-        my @lsdev_temp;
-
-        #print " lsdev output:\n @lsdev_in\n" ;
-        print "checking tape devices on $cn ";
-        foreach my $lsdev_ln (@lsdev_in) {
-                chomp($lsdev_ln);
-		#  whack off everything up to the :
-                $lsdev_ln =~ s/^.*\:\s//; 
-		# clear out the stuff that can change so we can 
-		# compare the device name and WWN-lun  
-		# $lsdev_ln =~ s/\sU[0-9]{4}.[0-9]{3}.{17}\-W/\ WWN/;
-                $lsdev_ln =~ s/\sU[0-9].*-W/\ WWN/;
-		#
-		# create an array with the devices in it
-                push (@lsdev_temp, $lsdev_ln); #
-                print "x" if (!$DEBUG);
-                print "\ncleaned up line from lsdev:\n $lsdev_ln\n" if $DEBUG;
-
-                } # close line input processing loop
-                print "\n";
-		#
-		# stringify each servers output and push onto 
-		# array
-                $lsdev_str = join( "", @lsdev_temp);
-                push (@lsdev_comp, $lsdev_str);
-                print "$cn result: $lsdev_str\n" if $DEBUG;
-                }
-        print "compare string: @lsdev_comp\n" if $DEBUG;
-	#
-	# collapse the array
-        my @uniq = keys %{{ map { $_ => 1 } @lsdev_comp }};
-	my $count = @uniq;
-	print "output count: $count\n";
-        
-	print "server output:\n @uniq\n" if (($DEBUG) || ($count != 1));
-	die "DEVICE PATH PROBLEM, CHECK PATHS AND CABLES\n" if ($count != 1);
-
-} ## close fc_path_ck sub
-#
-#
-#####
-
-
-
 
 
 #
@@ -489,14 +299,6 @@ foreach my $cn (@CLUSTERNODES) { # Nota: cn = clusternode
 #######
 # networker_install.pm "main"
 #
-#
-
-###
-# check the fibre paths
-fc_path_ck();
-#
-###
-
 ######
 # Software install
 #  Client, Storage node, Server, License Manager, NMC,  Man pages
@@ -618,129 +420,121 @@ foreach my $cn (@CLUSTERNODES) { # Nota: $cn = cluster node
 		die "\n\nNetWorker Cluster configuration script failed:\n @nwcconfig_out \n";
 	} else {next;}
 }
-
-# start networker
-# 
-my $curclnode = get_clnode($NWCLUSRG);
-nw_start ($curclnode) ;
-
 #
 # end configure cluster subsection
 ######
+
+
 ######
 # get/set HostIDs
 #
+my %hostids;
+my @hostids;
 
 
-print"determining cluster hostid:\n";
-# if the hostids file exists, we can skip this part
-if ( !-e $HOSTIDFILE) {
+print"Determining cluster hostid:\n";
 
-	my %hostids;
-	my @hostids;
-	# Now loop through the list of clusternodes
-	# we don't need to do this with arrays of arrays, but 
-	# it allows us to print up a nice report when we're done.
-	#
-	foreach my $clnode ( @CLUSTERNODES ) {
-		# 
-		# set initial curnode
-		my $curnode = get_clnode($NWCLUSRG);
-		#
-		# does the cluster need moved?
-		if ( $clnode ne $curnode) {
-			print "\nthe current node of $NWCLUSRG is: $curnode\nMoving node to $clnode\n";
-			# yes? then shut down NetWorker
-			nw_stop( $curnode);
-			# give nw a rest befor the move
-			sleep(20);
-			# move_clnode
-			move_clnode($clnode,$NWCLUSRG);
-			# 
-			nw_start($clnode);
-			# give the app some time to come up
-			sleep (98);
-			# 
-			# update the current node
-			$curnode = get_clnode($NWCLUSRG);
-		} 
-		# call for each cluster node
-		my $hostid = get_hostid($NSRSERVER);
-		#print $hostid;
-		#
-		push(@{$hostids{$clnode}},$hostid);
-	} ## close foreach()
-	#
-	# create a plain array..  there is probably a cheaper way
-	foreach my $clnode ( @CLUSTERNODES ) {
-		print "$clnode hostid: @{$hostids{$clnode}}\n" ;
-		push (@hostids, @{$hostids{$clnode}});	
-
-	} ## close foreach()#
-
-	# turn into our hostids file format
-	my $hostid_out = join (":",@hostids); 
-
-	print "writing hostid file to $HOSTIDFILE\n ";
-	#create hostid file
-	open (HOSTID,">$HOSTIDFILE") || die "$!\n";
-	print HOSTID "$hostid_out";
-	close (HOSTID);
-	print "$HOSTIDFILE written\n ";
-	
-	# Move hostid file to both nodes this is a bit of a 
-	# blunt solution if we were being more crafty we'd
-	# just create it in a temdir and move it to the 
-	# correct node, but this will work just fine
-	#
-	print "copying hostid file to $CLUSTERNODES[1]:$HOSTIDFILE\n ";
-	open (RSHOUT, "$RCPPROG $HOSTIDFILE $CLUSTERNODES[1]:$HOSTIDFILE 2>&1|") || die "$RCPPROG failed: $!\n"; 
-
-	my @rsh_out = <RSHOUT>;
-
-	foreach my $rshline (@rsh_out) {
-		if ($rshline =~ m/^.*NOT.FOUND.*/) {
-			die "ERROR: $rshline\n";
-		}else {return(0);}
-	} ## end rsh log processing
-
-	print "hostid file copied\n";
-
-	# restart networker
-
-	print"Restarting NetWorker\n";
-	#
+# Now loop through the list of clusternodes
+# we don't need to do this with arrays of arrays, but 
+# it allows us to print up a nice report when we're done.
+#
+foreach my $clnode ( @CLUSTERNODES ) {
 	# 
+	# set initial curnode
 	my $curnode = get_clnode($NWCLUSRG);
-	nw_stop($curnode);
-	sleep(20);
-	nw_start($curnode);
-	# get hostid and send somewhere
 	#
+	# does the cluster need moved?
+	if ( $clnode ne $curnode) {
+		# yes? move_clnode
+		move_clnode($clnode,$NWCLUSRG);
+		#
+		# give the app some time to come up
+		sleep (90);
+		# 
+		# update the current node
+		$curnode = get_clnode($NWCLUSRG);
+	} 
+	# call for each cluster node
+	my $hostid = get_hostid($NSRSERVER);
+	#print $hostid;
 	#
-	my $clhostid_out = get_hostid($NSRSERVER);
-	print ("NetWorker Cluster composite hostid: $clhostid_out\n\n");
+	push(@{$hostids{$clnode}},$hostid);
+} ## close foreach()
+#
+# create a plain array..  there is probably a cheaper way
+foreach my $clnode ( @CLUSTERNODES ) {
+	print "$clnode hostid: @{$hostids{$clnode}}\n" ;
+	push (@hostids, @{$hostids{$clnode}});	
 
-	} ## close  file test if
-	else {
-	print "$HOSTIDFILE found, skipping composite HostID generation\n\n";
-}
+} ## close foreach()#
 
+# turn into our hostids file format
+my $hostid_out = join (":",@hostids); 
+
+
+print "writing hostid file to $HOSTIDFILE\n ";
+#create hostid file
+open (HOSTID,">$HOSTIDFILE") || die "$!\n";
+print HOSTID "$hostid_out";
+close (HOSTID);
+print "$HOSTIDFILE written\n ";
+
+# Move hostid file to both nodes
+#
+
+print "copying hostid file to $CLUSTERNODES[1]:$HOSTIDFILE\n ";
+open (RSHOUT, "$RCPPROG $HOSTIDFILE $CLUSTERNODES[1]:$HOSTIDFILE 2>&1|") || die "$RCPPROG failed: $!\n"; 
+
+my @rsh_out = <RSHOUT>;
+
+foreach my $rshline (@rsh_out) {
+	if ($rshline =~ m/^.*NOT.FOUND.*/) {
+		die "ERROR: $rshline\n";
+	}else {return(0);}
+} ## end rsh log processing
+
+print "hostid file copied\n";
+
+
+# restart networker
+
+print"Restarting NetWorker\n";
+#
+# this is lazy, but it will work
+move_clnode($CLUSTERNODES[0],$NWCLUSRG);
+sleep (90);
+# get hostid and send somewhere
+#
+my $clhostid_out = get_hostid($NSRSERVER);
+print ("NetWorker Cluster composite hostid: $clhostid_out\n");
 # end get/set HostIDs subsection
 ######
+
 
 
 ######
 #
 # Configure jukebox
-#
-# test first to see if it's configured
-if (jbtest()) {
-	print "jukebox configured\n";
-} else {
-	jukebox_conf();
-}
 
+print "Configuring Jukebox\n";
+
+open ( JBCONFIG,"$JBCONF $NSRSERVER 2>&1|") || die "$!\n";
+
+my @jbconfig_out = <JBCONFIG>;
+
+foreach my $jbline (@jbconfig_out) {
+	if ($jbline =~ m/^.*added.*/) {
+		print "$jbline\n";
+	}
+	if ($jbline =~ m/^.*cannot.connect.*/){
+		die "@jbconfig_out \n"
+	}
+	if ($jbline =~ m/^.*RPC.error.*/){
+		die "@jbconfig_out \n" 
+	}else { next;}
+} ## end jbconfig log processing
+#
+print "@jbconfig_out\n";
 # end configure jukebox subsection
 ######
 
