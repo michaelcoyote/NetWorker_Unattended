@@ -24,7 +24,7 @@ use vars qw($NSRSERVER $NSRJB $MMINFO $SAVEGRPCMD $GROUPNAME $LOGFILE $LOGLOC
 	$SCHEDULE $FSSSN $BUINLST $MAXBACKUPS $BKUPFRQ $SSFILENAME $DEBUG
 	$NSRMM $opt_D %options $SYSTIME $NOCHECK $NOLIST $NOBKUP $SID
 	$RECOVER $RTMP $BUCKSUM $CHECKSUM $BACKPATH $NORECOVERTEST
-	$LOGRETAIN $ORACLESTATUS $NOSTATCK $DIRECTEDRECOV); 
+	$LOGRETAIN $ORACLESTATUS $NOSTATCK); 
 #
 ######
 
@@ -153,7 +153,7 @@ $RECOVER="recover";
 #
 sub get_savesets {
 
-	open( GETSAVESET, "$MMINFO -q name=\"$FSSSN\" -v -xc, 2>&1|");
+	open(GETSAVESET, "$MMINFO -q name=\"$FSSSN\" -v -xc, 2>&1|");
         my @recoverysets;
 	my @tmp_ssinfo;
         my @getss_out = <GETSAVESET>;
@@ -164,7 +164,7 @@ format top =
 
 format =
 @|||| @||||||||||||||||||||| @<<<<<<<<<<<<
-$count,   $tmp_ssinfo[2],                   $tmp_ssinfo[4]
+$count,   $tmp_ssinfo[2],      $tmp_ssinfo[4]
 .      
 	print "\nChoose from the following savesets:\n\n";
         foreach my $getss_ln (reverse @getss_out) {
@@ -218,12 +218,23 @@ sub my_selector {
 #
 
 sub recover_ss {
-	print "recovering $_[0]\n"; 
-	if ($DIRECTEDRECOV) {
-		my $dir = " -d $DIRECTEDRECOV ";
-	} else {
+	print "recovering $_[0]\n";
+	my $ltest=1;
+	while ($ltest){
+		print "saveset recovery is destructive, press Y to recover\n";
+		$| = 1;			# force a flush after our print
+		my $input = <>;		# get the input 
+		chomp($input);
+		$input=1 if (!$input);
+		if ($input ne "Y") {
+			next;
+		} if ($input eq "Y") {
+			$ltest=0;
+		}
+	}
+			
 
-        open (RTEST, "$RECOVER -s $NSRSERVER -f $dir -S $_[0]  2>&1|") || die "Recovery failed: $!\n";
+        open (RTEST, "$RECOVER -s $NSRSERVER -f  -S $_[0]  2>&1|") || die "Recovery failed: $!\n";
         my @recov = <RTEST>;
 	print "DEBUG recover output\n @recov \n" if $DEBUG;
         my $r_file;
