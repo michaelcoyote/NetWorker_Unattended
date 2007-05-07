@@ -221,7 +221,7 @@ sub recover_ss {
 		if ($input ne "Y") {
 			next;
 		} if ($input eq "e") {
-			next;
+			exit;
 		} if ($input eq "Y") {
 			$ltest=0;
 		}
@@ -250,6 +250,13 @@ sub recover_ss {
 #
 #
 # main execution
+#
+# 1st get savesets using the get_savesets() command and retrn keyed list of key, ssid and date
+#
+# 2nt display the date, key and ssid. 
+# 	select the savesets and return SSID
+#
+# 3rd  recover savesets
 
 recover_ss(my_selector(get_savesets()));
 

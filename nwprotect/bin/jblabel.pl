@@ -4,7 +4,7 @@
 #
 ###### 
 
-use vars qw( $NSRSERVER );
+use vars qw( $NSRSERVER @NWPOOLS );
 
 
 # Do not remove or disable without good documented reason.
@@ -20,12 +20,53 @@ use warnings;
 # NetWorker server
 $NSRSERVER="sdp_nsr";
 #
+# allowable pools
+@NWPOOLS=qw(bootstrap MainDBbackup );
+#
 ##### end variable default
 
 #####
 #
 #
 #
+print"select		Pool\n";
+
+
+my %keyed_poollist;
+my $pkey=1;
+foreach my $pool (@NWPOOLS) {
+	${keyed_poollist{$pkey}} = [] unless exists ${keyed_poollist{$pkey}}; 
+	push(@{$keyed_poollist{$pkey}} => $pool);
+	
+
+	print"  $pkey		$pool\n";
+
+
+}
+my $pinput;
+my $ploopt=1;
+while ($ploopt){
+	print 'Select the pool #: ';
+	print "\n";
+	$| = 1;			# force a flush after our print
+	$pinput = <>;		# get the input 
+	chomp($pinput);
+	$pinput="e" if (!$pinput);
+	if ($pinput eq "e") {
+		exit;}
+	## check the hash position for existance
+	if (!defined(@{$keyed_poollist{$pinput}})) {
+		print "\nno such pool, please select a listed set or press e to exit\n";
+		next;
+	} if (defined(@{$keyed_poollist{$pinput}})) {
+		print "\nyou selected: $pinput: @{$keyed_poollist{$pinput}}\n";
+		$ploopt=0;
+	}
+
+
+}
+
+
 
 
 open (JBIN, "nsrjb -s$NSRSERVER -C 2>&1|") || die "problem with nsrjb\n";
@@ -95,7 +136,7 @@ while ($loopt){
 
 
 
-system("nsrjb -s $NSRSERVER -v -w  -S $input") ||die "$!\n";
+system("nsrjb -s $NSRSERVER -v -b @{$keyed_poollist{$input}} -S $input") ||die "$!\n";
 
 
 
