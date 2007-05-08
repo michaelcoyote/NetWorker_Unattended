@@ -52,28 +52,18 @@ foreach my $jb_ln (@nsrjb_in){
 		$label =~ s/\s+$//; ## remove whitespace 
 		$label =~ s/\*$//; ## remove "*" 
 		$barcode =~ s/\s+$//; ## also remove whitespace
-		# 
-		# check for validity 
-		# this section could be cleaned up
-		if ($label =~ /^\w/) {
-			#
-			# labels are 6-8 chars long, right?
-			if ($label !~ /^.{6,8}$/) { 
-				die "nsrjb: bad label \"$label\"\n\t$_\n";
-			} 
-		}
-		#
-		# 
 		$label =~ s/-/unlabled/; ## identify unlabeled tapes perhaps collapse with "*" above
 		#
 		# final test for validity.  
-		# Insure that the label is all alpha numeric
+		# test that the label is all alpha numeric
 		#
-		if ($label !~ /^[A-z0-9]{6,8}$/) { 
+		# 
+		if ($label !~ /^\w{6,8}$/) {
+			# if it's not, we skip the line
 			next;
 		} else {
 			# press the barcode into a hash keyed by slot number.
-			# this will be usefule when we need to display both 
+			# this will be useful when we need to display both 
 			# then select an avalible tape. there's probably a simpler 
 			# way,  but defined() is a great thing to have 
 			#
@@ -125,7 +115,8 @@ while ($loopt){
 	$input="e" if (!$input);
 	if ($input eq "e") {
 		exit;}
-	## check the hash position for existance
+	# check the hash position for existance
+	# note that defined() is a great thing to have
 	if (!defined(@{$keyed_slotlist{$input}})) {
 		print "\nno such slot, please select a listed set or press e to exit\n";
 		next;
@@ -139,7 +130,7 @@ while ($loopt){
 
 #
 #
-# and here you just do a simple withdraw on the tapes by slot
+# and here you just do a simple withdraw on the tape by slot
 system("nsrjb -s $NSRSERVER -v -w  -S $input") ||die "$!\n";
 
 #####
