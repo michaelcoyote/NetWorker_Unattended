@@ -54,10 +54,9 @@ foreach my $jb_ln (@nsrjb_in){
 		$label =~ s/-/unlabled/; ## identify unlabeled tapes perhaps collapse with "*" above
 		$barcode =~ s/\s+$//; ## also remove whitespace
 		#
-		# final test for validity.  
-		# test that the label is all alpha numeric
-		#
-		# 
+		# test for validity.  
+		# insure that the label is all 
+		# alpha numeric 6-8 chars long
 		if ($label !~ /^\w{6,8}$/) {
 			# if it's not, we skip the line
 			next;
