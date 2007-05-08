@@ -4,7 +4,7 @@
 #
 ###### 
 
-use vars qw( $NSRSERVER );
+use vars qw($DEBUG $NSRSERVER );
 
 
 # Do not remove or disable without good documented reason.
@@ -51,8 +51,8 @@ foreach my $jb_ln (@nsrjb_in){
 		my ($slot,$label,$pool,$barcode)=($1,$2,$3,$4);
 		$label =~ s/\s+$//; ## remove whitespace 
 		$label =~ s/\*$//; ## remove "*" 
-		$barcode =~ s/\s+$//; ## also remove whitespace
 		$label =~ s/-/unlabled/; ## identify unlabeled tapes perhaps collapse with "*" above
+		$barcode =~ s/\s+$//; ## also remove whitespace
 		#
 		# final test for validity.  
 		# test that the label is all alpha numeric
