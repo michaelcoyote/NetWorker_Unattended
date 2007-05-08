@@ -71,9 +71,6 @@ foreach my $jb_ln (@nsrjb_in){
 			# push the data on here
 			push(@{$keyed_slotlist{$slot}} => $barcode);
 		}
-
-
-
 		#
 		# set up a nice pretty format for our output.  
 		# This scales to larger jukeboxes well
@@ -93,8 +90,6 @@ $slot, $barcode, $label;
 
 	}
 }
-
-#
 #
 # ok, do the selection of tape here
 # simple while loop with test.  loop 
